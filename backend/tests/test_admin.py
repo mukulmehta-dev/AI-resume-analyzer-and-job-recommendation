@@ -1,4 +1,4 @@
-﻿import uuid
+import uuid
 import pytest
 from backend.app.models.user import User, UserRole
 from backend.app.models.resume import Resume
@@ -173,7 +173,7 @@ def test_production_refuses_placeholder_admin_password():
     from pydantic import ValidationError
     from backend.app.core.config import Settings
     with pytest.raises(ValidationError):
-        Settings(ENV="production", JWT_SECRET="x" * 32, ADMIN_PASSWORD="changethisinproduction")
+        Settings(ENV="production", JWT_SECRET="x" * 32, ADMIN_PASSWORD="AdminSecurePassword2026!")
 
 
 def test_production_accepts_strong_admin_password():

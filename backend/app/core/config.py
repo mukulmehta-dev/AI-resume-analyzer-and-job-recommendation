@@ -1,4 +1,4 @@
-﻿from pydantic import field_validator, model_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional, List
 
@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     def _validate_production_admin_password(self) -> "Settings":
         if self.ENV == "production":
             placeholders = {
-                "admin", "password", "changeme", "placeholder",
+                "admin", "password", "changeme", "placeholder", "changethisinproduction",
                 "adminsecurepassword2026!", "your_admin_password_here"
             }
             if not self.ADMIN_PASSWORD:
