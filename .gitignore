@@ -1,0 +1,37 @@
+# Environment & secrets
+.env
+.env*.local
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+backend/.venv/
+.venv/
+venv/
+ENV/
+env/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Databases & local storage
+*.db
+*.sqlite
+*.sqlite3
+data/uploads/
+uploads/
+
+# Node & Frontend
+node_modules/
+frontend/node_modules/
+frontend/build/
+frontend/.react-router/
+build/
+dist/
+.DS_Store
+Thumbs.db
+*.log
