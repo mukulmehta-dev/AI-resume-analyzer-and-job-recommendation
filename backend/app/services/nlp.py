@@ -1,5 +1,5 @@
 import re
-from typing import Dict, List, Any, Tuple
+from typing import Dict, List, Any
 
 _SECTION_PATTERNS: Dict[str, List[re.Pattern]] = {
     "contact": [
@@ -61,7 +61,19 @@ _URL_RE = re.compile(
     r"|www\.[^\s]+"
     r"|linkedin\.com/in/[^\s]+"
     r"|github\.com/[^\s]+"
+    r"|[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}(?:/[^\s]*)?"
 )
+
+_ALLOWED_PLATFORMS = (
+    "github.com",
+    "gitlab.com",
+    "bitbucket.org",
+    "linkedin.com",
+    "kaggle.com",
+    "huggingface.co",
+    "behance.net",
+)
+_SPAM_TLDS = (".xyz", ".top", ".click")
 
 _DEGREE_PATTERNS = [
     re.compile(r"\b(B\.?S\.?|B\.?E\.?|B\.?Tech\.?|Bachelor(?:\'?s)?(?:\s+of\s+\w+)?)\b", re.IGNORECASE),
@@ -97,6 +109,23 @@ _QUANTIFIED_RE = re.compile(
 )
 
 
+def is_valid_portfolio_link(url: str) -> bool:
+    clean = url.lower().strip().rstrip(".,;:!?)'\"")
+    clean = re.sub(r"^https?://", "", clean)
+    clean = re.sub(r"^www\.", "", clean)
+    host = clean.split("/")[0].split("?")[0].split(":")[0]
+    if not host or "@" in host:
+        return False
+    if any(host == p or host.endswith("." + p) for p in _ALLOWED_PLATFORMS):
+        return True
+    if any(host.endswith(tld) for tld in _SPAM_TLDS):
+        return False
+    parts = host.split(".")
+    if len(parts) >= 2 and len(parts[-1]) >= 2:
+        return True
+    return False
+
+
 def detect_sections(text: str) -> Dict[str, bool]:
     result: Dict[str, bool] = {key: False for key in _SECTION_PATTERNS}
     for section_key, patterns in _SECTION_PATTERNS.items():
@@ -107,23 +136,29 @@ def detect_sections(text: str) -> Dict[str, bool]:
     return result
 
 
+def extract_links(text: str) -> List[str]:
+    raw_urls = _URL_RE.findall(text)
+    valid = set()
+    for u in raw_urls:
+        cleaned = u.strip().rstrip(".,;:!?)'\"")
+        if is_valid_portfolio_link(cleaned):
+            valid.add(cleaned)
+    return sorted(list(valid))
+
+
 def extract_contact_info(text: str) -> Dict[str, Any]:
     emails = _EMAIL_RE.findall(text)
     phones = _PHONE_RE.findall(text)
-    urls = _URL_RE.findall(text)
+    urls = extract_links(text)
     return {
         "emails": list(set(emails)),
         "phones": list(set(phones)),
-        "urls": list(set(urls)),
+        "urls": urls,
     }
 
 
 def count_words(text: str) -> int:
     return len(text.split())
-
-
-def extract_links(text: str) -> List[str]:
-    return list(set(_URL_RE.findall(text)))
 
 
 def extract_degree_mentions(text: str) -> List[str]:

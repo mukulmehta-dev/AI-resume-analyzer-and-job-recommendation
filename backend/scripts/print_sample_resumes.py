@@ -1,5 +1,10 @@
-import json
+import os
+import sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+
 from backend.app.services.pipeline import run_rule_based
+from backend.app.services.matcher import compute_compatibility, match_skills
+from backend.app.services.scorer import SECTION_WEIGHTS
 
 SAMPLE_JD = "Required skills: Python, FastAPI, PostgreSQL, Docker, Git. Preferred skills: Kubernetes, AWS, Redis, React, TypeScript."
 
@@ -80,16 +85,80 @@ SAMPLES = {
     "empty": EMPTY_RESUME,
 }
 
+
 def main():
-    results = {}
+    print("=" * 105)
+    print("SCORING CONSISTENCY CHECK ON FIVE SAMPLE RESUMES")
+    print("=" * 105)
+    header = f"{'Sample':<10} | {'Skills':<10} | {'Exp':<10} | {'Edu':<10} | {'Proj':<10} | {'Cert':<10} | {'Struct':<10} | {'Computed Sum':<13} | {'Resume Score':<12} | {'Matches':<7}"
+    print(header)
+    print("-" * 105)
+
+    all_match = True
     for name, text in SAMPLES.items():
-        res_no_jd = run_rule_based(text, None)
+        res = run_rule_based(text, None)
+        sec = res.sections
+        skills_sub = sec.get("skills", {}).get("score", 0)
+        exp_sub = sec.get("experience", {}).get("score", 0)
+        edu_sub = sec.get("education", {}).get("score", 0)
+        proj_sub = sec.get("projects", {}).get("score", 0)
+        cert_sub = sec.get("certifications", {}).get("score", 0)
+        struct_sub = sec.get("structure", {}).get("score", 0)
+
+        calc_sum = (
+            skills_sub * SECTION_WEIGHTS["skills"]
+            + exp_sub * SECTION_WEIGHTS["experience"]
+            + edu_sub * SECTION_WEIGHTS["education"]
+            + proj_sub * SECTION_WEIGHTS["projects"]
+            + cert_sub * SECTION_WEIGHTS["certifications"]
+            + struct_sub * SECTION_WEIGHTS["structure"]
+        )
+        rounded_sum = round(calc_sum)
+        matches = (rounded_sum == res.resume_score)
+        if not matches:
+            all_match = False
+
+        row = (
+            f"{name:<10} | "
+            f"{skills_sub:<10} | "
+            f"{exp_sub:<10} | "
+            f"{edu_sub:<10} | "
+            f"{proj_sub:<10} | "
+            f"{cert_sub:<10} | "
+            f"{struct_sub:<10} | "
+            f"{calc_sum:<13.2f} | "
+            f"{res.resume_score:<12} | "
+            f"{str(matches):<7}"
+        )
+        print(row)
+
+    print("-" * 105)
+    print(f"Weights used: {SECTION_WEIGHTS}")
+    print(f"All sample resumes exact equality verification: {'PASS' if all_match else 'FAIL'}")
+    print("\n" + "=" * 105)
+    print("COMPATIBILITY METRICS FOR ALL SAMPLES WITH JOB DESCRIPTION")
+    print("=" * 105)
+    comp_header = f"{'Sample':<10} | {'Skill Overlap':<15} | {'Semantic Similarity':<22} | {'Compatibility':<15}"
+    print(comp_header)
+    print("-" * 105)
+
+    for name, text in SAMPLES.items():
         res_with_jd = run_rule_based(text, SAMPLE_JD)
-        results[name] = {
-            "without_jd": res_no_jd.model_dump(),
-            "with_jd": res_with_jd.model_dump(),
-        }
-    print(json.dumps(results, indent=2, default=str))
+        matching, missing = match_skills(res_with_jd.detected_skills, SAMPLE_JD)
+        comp = compute_compatibility(
+            resume_text=text,
+            jd_text=SAMPLE_JD,
+            resume_skills=res_with_jd.detected_skills,
+            matching_skills=matching,
+            missing_skills=missing,
+        )
+        if comp is not None:
+            overlap, sim, score = comp
+            print(f"{name:<10} | {overlap:<15.4f} | {sim:<22.4f} | {score:<15}")
+        else:
+            print(f"{name:<10} | {'None':<15} | {'None':<22} | {'None':<15}")
+    print("=" * 105)
+
 
 if __name__ == "__main__":
     main()

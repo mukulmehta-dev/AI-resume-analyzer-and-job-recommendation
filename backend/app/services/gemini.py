@@ -1,10 +1,13 @@
 import json
 import time
+import logging
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, ValidationError, field_validator
 from google import genai
 from google.genai import types as genai_types
 from backend.app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class GeminiUnavailable(Exception):
@@ -130,50 +133,60 @@ def enhance_analysis(
     resume_score: int,
     sections: Dict[str, bool],
 ) -> Dict[str, Any]:
-    if not settings.GEMINI_API_KEY:
+    if not settings.GEMINI_API_KEY or settings.GEMINI_API_KEY == "your_gemini_api_key_here":
         raise GeminiUnavailable("GEMINI_API_KEY is not configured")
 
-    client = genai.Client(api_key=settings.GEMINI_API_KEY)
+    http_opts = genai_types.HttpOptions(timeout=30000)
+    client = genai.Client(api_key=settings.GEMINI_API_KEY, http_options=http_opts)
     user_prompt = _build_user_prompt(
         resume_facts, jd_text, detected_skills, matching_skills, missing_skills,
         resume_score, sections,
     )
 
+    models_to_try = settings.candidate_gemini_models
     last_exc: Exception = GeminiUnavailable("Unknown error")
-    for attempt in range(2):
-        try:
-            response = client.models.generate_content(
-                model=settings.GEMINI_MODEL,
-                contents=[
-                    genai_types.Content(
-                        role="user",
-                        parts=[
-                            genai_types.Part(text=_SYSTEM_PROMPT + "\n\n" + user_prompt)
-                        ],
-                    )
-                ],
-                config=genai_types.GenerateContentConfig(
-                    temperature=0.2,
-                    max_output_tokens=2048,
-                    timeout=30.0,
-                ),
-            )
-            parsed = _parse_response(response.text)
-            return {
-                "strengths": parsed.strengths,
-                "weaknesses": parsed.weaknesses,
-                "recommendations": [r.model_dump() for r in parsed.recommendations],
-                "summary_feedback": parsed.summary_feedback,
-            }
-        except (json.JSONDecodeError, ValidationError, KeyError) as exc:
-            raise GeminiUnavailable(f"Invalid response from Gemini: {exc}") from exc
-        except Exception as exc:
-            last_exc = exc
-            if attempt == 0:
-                time.sleep(1)
 
-    raise GeminiUnavailable(f"Gemini request failed after 2 attempts: {last_exc}") from last_exc
+    for model_name in models_to_try:
+        for attempt in range(2):
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=[
+                        genai_types.Content(
+                            role="user",
+                            parts=[
+                                genai_types.Part(text=_SYSTEM_PROMPT + "\n\n" + user_prompt)
+                            ],
+                        )
+                    ],
+                    config=genai_types.GenerateContentConfig(
+                        temperature=0.2,
+                        max_output_tokens=2048,
+                        response_mime_type="application/json",
+                    ),
+                )
+                parsed = _parse_response(response.text)
+                logger.info(f"Analysis served by Gemini model: {model_name}")
+                return {
+                    "strengths": parsed.strengths,
+                    "weaknesses": parsed.weaknesses,
+                    "recommendations": [r.model_dump() for r in parsed.recommendations],
+                    "summary_feedback": parsed.summary_feedback,
+                    "model_used": model_name,
+                }
+            except (json.JSONDecodeError, ValidationError, KeyError) as exc:
+                raise GeminiUnavailable(f"Invalid response from Gemini: {exc}") from exc
+            except Exception as exc:
+                last_exc = exc
+                err_str = str(exc)
+                if any(code in err_str for code in ("404", "403", "429", "NOT_FOUND", "PERMISSION_DENIED", "RESOURCE_EXHAUSTED")):
+                    logger.warning(f"Gemini model {model_name} failed with {exc.__class__.__name__}, falling back to next model.")
+                    break
+                if attempt == 0:
+                    time.sleep(1)
+
+    raise GeminiUnavailable(f"All Gemini models failed: {last_exc}") from last_exc
 
 
 def is_available() -> bool:
-    return bool(settings.GEMINI_API_KEY)
+    return bool(settings.GEMINI_API_KEY and settings.GEMINI_API_KEY != "your_gemini_api_key_here")

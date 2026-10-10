@@ -1,6 +1,10 @@
 import os
 import sys
+import io
 from datetime import datetime, timezone
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from docx import Document
 from backend.app.core.config import settings
 from backend.app.core.security import hash_password
 from backend.app.db.session import SessionLocal
@@ -8,6 +12,31 @@ from backend.app.models.user import User, UserRole
 from backend.app.models.resume import Resume
 from backend.app.models.analysis import Analysis, AnalysisStatus
 from backend.app.services.pipeline import run_rule_based
+from backend.app.db.seed import seed_admin
+from backend.app.services.storage import storage_service
+
+
+def _create_sample_pdf(text: str) -> bytes:
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, pagesize=letter)
+    y = 750
+    for line in text.split("\n"):
+        if y < 50:
+            c.showPage()
+            y = 750
+        c.drawString(50, y, line[:90])
+        y -= 15
+    c.save()
+    return buffer.getvalue()
+
+
+def _create_sample_docx(text: str) -> bytes:
+    doc = Document()
+    for line in text.split("\n"):
+        doc.add_paragraph(line)
+    buffer = io.BytesIO()
+    doc.save(buffer)
+    return buffer.getvalue()
 
 
 def seed_demo_data():
@@ -16,6 +45,8 @@ def seed_demo_data():
         return
 
     with SessionLocal() as db:
+        seed_admin(db)
+
         demo_user = db.query(User).filter(User.email == "demo@example.com").first()
         if not demo_user:
             demo_user = User(
@@ -40,17 +71,40 @@ def seed_demo_data():
             "Projects\nDistributed Task Engine (github.com/alexm/task-engine)\n\n"
             "Certifications\nAWS Certified Solutions Architect"
         )
+        pdf_bytes = _create_sample_pdf(r1_text)
+        path1, _ = storage_service.save_file(pdf_bytes, "Alex_Mercer_Senior_Architect.pdf")
+
         r1 = Resume(
             user_id=demo_user.id,
             filename="Alex_Mercer_Senior_Architect.pdf",
-            stored_path="/data/uploads/alex_mercer.pdf",
+            stored_path=path1,
             mime="application/pdf",
-            size=14200,
+            size=len(pdf_bytes),
             extracted_text=r1_text,
         )
         db.add(r1)
         db.commit()
         db.refresh(r1)
+
+        res0 = run_rule_based(r1_text, None)
+        a0 = Analysis(
+            user_id=demo_user.id,
+            resume_id=r1.id,
+            job_description=None,
+            resume_score=res0.resume_score,
+            compatibility_score=None,
+            detected_skills=res0.detected_skills,
+            matching_skills=[],
+            missing_skills=[],
+            sections=res0.sections,
+            strengths=res0.strengths,
+            weaknesses=res0.weaknesses,
+            recommendations=[r.model_dump() for r in res0.recommendations],
+            summary_feedback="Strong profile with verified engineering and architectural foundation.",
+            status=AnalysisStatus.done,
+            ai_unavailable=False,
+        )
+        db.add(a0)
 
         jd1 = "Required: Python, FastAPI, Docker, PostgreSQL, Kubernetes. Preferred: AWS, Redis, React."
         res1 = run_rule_based(r1_text, jd1)
@@ -82,12 +136,15 @@ def seed_demo_data():
             "- Improved test coverage by 20% across key application flows.\n\n"
             "Education\nB.A. in Computer Science, State College (2021)"
         )
+        docx_bytes = _create_sample_docx(r2_text)
+        path2, _ = storage_service.save_file(docx_bytes, "Taylor_Reed_Resume.docx")
+
         r2 = Resume(
             user_id=demo_user.id,
             filename="Taylor_Reed_Resume.docx",
-            stored_path="/data/uploads/taylor_reed.docx",
+            stored_path=path2,
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            size=8900,
+            size=len(docx_bytes),
             extracted_text=r2_text,
         )
         db.add(r2)
@@ -120,12 +177,15 @@ def seed_demo_data():
             "Tech enthusiast seeking software role.\n"
             "Experience with HTML, CSS, JavaScript."
         )
+        pdf3_bytes = _create_sample_pdf(r3_text)
+        path3, _ = storage_service.save_file(pdf3_bytes, "Jordan_Case_Draft.pdf")
+
         r3 = Resume(
             user_id=demo_user.id,
             filename="Jordan_Case_Draft.pdf",
-            stored_path="/data/uploads/jordan_case.pdf",
+            stored_path=path3,
             mime="application/pdf",
-            size=3400,
+            size=len(pdf3_bytes),
             extracted_text=r3_text,
         )
         db.add(r3)
@@ -153,7 +213,7 @@ def seed_demo_data():
         db.add(a3)
 
         db.commit()
-        print("Demo seed completed successfully. Created demo user demo@example.com with 3 analyses.")
+        print("Demo seed completed successfully. Created demo user demo@example.com with 3 analyses and seeded administrator.")
 
 
 if __name__ == "__main__":

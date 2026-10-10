@@ -3,8 +3,6 @@ from typing import List, Tuple, Optional
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from backend.app.services.skills import extract_skills
-from backend.app.core.config import settings
-
 
 _REQUIRED_MARKERS = re.compile(
     r"\b(required?|must\s+have?|mandatory|essential)\b",
@@ -55,7 +53,7 @@ def _tfidf_similarity(text_a: str, text_b: str) -> float:
     if not text_a.strip() or not text_b.strip():
         return 0.0
     try:
-        vec = TfidfVectorizer(ngram_range=(1, 2), stop_words="english")
+        vec = TfidfVectorizer(ngram_range=(1, 2), stop_words="english", sublinear_tf=True)
         matrix = vec.fit_transform([text_a, text_b])
         score = float(cosine_similarity(matrix[0], matrix[1])[0][0])
         return round(min(max(score, 0.0), 1.0), 4)
@@ -99,7 +97,11 @@ def compute_compatibility(
     preferred_total = len(preferred_skills)
 
     if required_total + preferred_total == 0:
-        weighted_overlap = 0.5
+        all_skills = set(extract_skills(jd_text))
+        if not all_skills:
+            weighted_overlap = 0.0
+        else:
+            weighted_overlap = len(resume_set & all_skills) / len(all_skills)
     else:
         required_score = (required_match / required_total) if required_total else 0.0
         preferred_score = (preferred_match / preferred_total) if preferred_total else 0.0
@@ -110,13 +112,7 @@ def compute_compatibility(
         else:
             weighted_overlap = preferred_score
 
-    if settings.USE_EMBEDDINGS:
-        similarity = _tfidf_similarity(resume_text, jd_text)
-    else:
-        similarity = _tfidf_similarity(
-            " ".join(resume_skills),
-            " ".join(set(extract_skills(jd_text))),
-        )
+    similarity = _tfidf_similarity(resume_text, jd_text)
 
     weighted_overlap_val = round(min(max(weighted_overlap, 0.0), 1.0), 4)
     similarity_val = round(min(max(similarity, 0.0), 1.0), 4)

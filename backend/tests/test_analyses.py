@@ -345,3 +345,93 @@ class TestStalePendingCleanup:
         db_session.refresh(stale)
         assert stale.status == AnalysisStatus.failed
         assert "timed out" in stale.error
+
+
+class TestGeminiModelFallbacks:
+    def test_primary_404_then_fallback_succeeds(self, monkeypatch):
+        from unittest.mock import MagicMock
+        from backend.app.services.gemini import enhance_analysis
+        from backend.app.core.config import settings
+
+        monkeypatch.setattr(settings, "GEMINI_API_KEY", "test_key_12345")
+        monkeypatch.setattr(settings, "GEMINI_MODEL", "gemini-primary")
+        monkeypatch.setattr(settings, "GEMINI_MODEL_FALLBACKS", "gemini-fallback")
+
+        mock_resp = MagicMock()
+        mock_resp.text = '{"strengths": ["Strong skill"], "weaknesses": ["Gap"], "recommendations": [{"title": "Learn X", "detail": "Details", "priority": "high"}], "summary_feedback": "Good"}'
+
+        mock_client = MagicMock()
+        mock_client.models.generate_content.side_effect = [
+            Exception("404 NOT_FOUND: model models/gemini-primary retired"),
+            mock_resp,
+        ]
+
+        with patch("backend.app.services.gemini.genai.Client", return_value=mock_client):
+            result = enhance_analysis(
+                resume_facts={"word_count": 200, "estimated_years_of_experience": 5, "action_verb_count": 5, "quantified_achievement_count": 2, "degree_mentions": ["B.S."]},
+                jd_text="Required: Python",
+                detected_skills=["Python"],
+                matching_skills=["Python"],
+                missing_skills=[],
+                resume_score=85,
+                sections={"skills": True},
+            )
+
+        assert result["model_used"] == "gemini-fallback"
+        assert result["strengths"] == ["Strong skill"]
+
+    def test_all_models_fail(self, monkeypatch):
+        from unittest.mock import MagicMock
+        from backend.app.services.gemini import enhance_analysis
+        from backend.app.core.config import settings
+
+        monkeypatch.setattr(settings, "GEMINI_API_KEY", "test_key_12345")
+        monkeypatch.setattr(settings, "GEMINI_MODEL", "gemini-primary")
+        monkeypatch.setattr(settings, "GEMINI_MODEL_FALLBACKS", "gemini-fallback")
+
+        mock_client = MagicMock()
+        mock_client.models.generate_content.side_effect = Exception("404 NOT_FOUND: retired")
+
+        with patch("backend.app.services.gemini.genai.Client", return_value=mock_client):
+            with pytest.raises(GeminiUnavailable):
+                enhance_analysis(
+                    resume_facts={"word_count": 200, "estimated_years_of_experience": 5, "action_verb_count": 5, "quantified_achievement_count": 2, "degree_mentions": ["B.S."]},
+                    jd_text="Required: Python",
+                    detected_skills=["Python"],
+                    matching_skills=["Python"],
+                    missing_skills=[],
+                    resume_score=85,
+                    sections={"skills": True},
+                )
+
+    def test_primary_429_then_fallback_succeeds(self, monkeypatch):
+        from unittest.mock import MagicMock
+        from backend.app.services.gemini import enhance_analysis
+        from backend.app.core.config import settings
+
+        monkeypatch.setattr(settings, "GEMINI_API_KEY", "test_key_12345")
+        monkeypatch.setattr(settings, "GEMINI_MODEL", "gemini-primary")
+        monkeypatch.setattr(settings, "GEMINI_MODEL_FALLBACKS", "gemini-fallback")
+
+        mock_resp = MagicMock()
+        mock_resp.text = '{"strengths": ["Strong skill"], "weaknesses": ["Gap"], "recommendations": [{"title": "Learn X", "detail": "Details", "priority": "high"}], "summary_feedback": "Good"}'
+
+        mock_client = MagicMock()
+        mock_client.models.generate_content.side_effect = [
+            Exception("429 RESOURCE_EXHAUSTED: quota reached"),
+            mock_resp,
+        ]
+
+        with patch("backend.app.services.gemini.genai.Client", return_value=mock_client):
+            result = enhance_analysis(
+                resume_facts={"word_count": 200, "estimated_years_of_experience": 5, "action_verb_count": 5, "quantified_achievement_count": 2, "degree_mentions": ["B.S."]},
+                jd_text="Required: Python",
+                detected_skills=["Python"],
+                matching_skills=["Python"],
+                missing_skills=[],
+                resume_score=85,
+                sections={"skills": True},
+            )
+
+        assert result["model_used"] == "gemini-fallback"
+        assert result["strengths"] == ["Strong skill"]

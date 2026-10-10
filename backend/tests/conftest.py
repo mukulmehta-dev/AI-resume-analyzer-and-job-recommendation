@@ -1,4 +1,8 @@
 import os
+import sys
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -8,11 +12,21 @@ from backend.app.db.session import Base, get_db
 from backend.app.core.ratelimit import requests_tracker
 import backend.app.routers.analyses as analyses_router
 
-test_db_url = os.getenv("TEST_DATABASE_URL")
+test_db_url = (os.getenv("TEST_DATABASE_URL") or "").strip()
+allow_sqlite = os.getenv("ALLOW_SQLITE_TESTS", "").strip() == "1"
+
 if not test_db_url:
-    test_db_url = "sqlite:///./test_runner.db"
-elif "sqlite" in test_db_url and os.getenv("REQUIRE_POSTGRES", "").lower() in ("1", "true"):
-    raise RuntimeError("Silent fallback to SQLite is forbidden. PostgreSQL is required via TEST_DATABASE_URL.")
+    if allow_sqlite:
+        test_db_url = "sqlite:///./test_runner.db"
+    else:
+        raise RuntimeError(
+            "TEST_DATABASE_URL is unset. Set TEST_DATABASE_URL to a valid PostgreSQL connection URL "
+            "or set ALLOW_SQLITE_TESTS=1 to permit local SQLite execution."
+        )
+elif "sqlite" in test_db_url and not allow_sqlite:
+    raise RuntimeError(
+        "SQLite is not permitted for TEST_DATABASE_URL unless ALLOW_SQLITE_TESTS=1 is explicitly set."
+    )
 
 connect_args = {"check_same_thread": False} if test_db_url.startswith("sqlite") else {}
 engine = create_engine(test_db_url, connect_args=connect_args)

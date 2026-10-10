@@ -1,9 +1,6 @@
-# Environment & secrets
 .env
 .env*.local
 !.env.example
-
-# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -17,21 +14,20 @@ env/
 .pytest_cache/
 .coverage
 htmlcov/
-
-# Databases & local storage
 *.db
 *.sqlite
 *.sqlite3
+test_runner.db
 data/uploads/
 uploads/
-
-# Node & Frontend
 node_modules/
 frontend/node_modules/
 frontend/build/
 frontend/.react-router/
 build/
 dist/
+review-package/
+review-package
 .DS_Store
 Thumbs.db
 *.log

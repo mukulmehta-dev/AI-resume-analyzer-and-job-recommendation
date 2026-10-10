@@ -493,3 +493,75 @@ class TestPipelineService:
         assert hasattr(result, "weaknesses")
         assert hasattr(result, "recommendations")
         assert hasattr(result, "summary_feedback")
+
+    def test_two_of_ten_skills_matched_below_30(self):
+        jd = "Required: Python, FastAPI, Docker, PostgreSQL, Kubernetes, AWS, Redis, React, TypeScript, GraphQL."
+        resume_text = "Junior engineer proficient in Python and FastAPI."
+        resume_skills = ["Python", "FastAPI"]
+        matching, missing = match_skills(resume_skills, jd)
+        assert len(matching) == 2
+        assert len(matching) + len(missing) == 10
+        res = compute_compatibility(resume_text, jd, resume_skills, matching, missing)
+        assert res is not None
+        assert res < 30
+
+    def test_one_of_ten_skills_matched_below_20(self):
+        jd = "Required: Python, FastAPI, Docker, PostgreSQL, Kubernetes, AWS, Redis, React, TypeScript, GraphQL."
+        resume_text = "Associate developer with basic Python."
+        resume_skills = ["Python"]
+        matching, missing = match_skills(resume_skills, jd)
+        assert len(matching) == 1
+        assert len(matching) + len(missing) == 10
+        res = compute_compatibility(resume_text, jd, resume_skills, matching, missing)
+        assert res is not None
+        assert res < 20
+
+    def test_full_match_above_85(self):
+        jd = "Staff engineer required: Python, FastAPI, Docker, PostgreSQL, Kubernetes, AWS, Redis, React, TypeScript, GraphQL. Responsible for building microservices, deploying containers, scaling distributed systems."
+        resume_text = "Staff engineer required: Python, FastAPI, Docker, PostgreSQL, Kubernetes, AWS, Redis, React, TypeScript, GraphQL. Responsible for building microservices, deploying containers, scaling distributed systems."
+        resume_skills = ["Python", "FastAPI", "Docker", "PostgreSQL", "Kubernetes", "AWS", "Redis", "React", "TypeScript", "GraphQL", "Microservices"]
+        matching, missing = match_skills(resume_skills, jd)
+        assert len(matching) >= 10
+        assert len(missing) == 0
+        res = compute_compatibility(resume_text, jd, resume_skills, matching, missing)
+        assert res is not None
+        assert res > 85
+
+    def test_no_jd_returns_none(self):
+        assert compute_compatibility("Some resume", "", ["Python"], ["Python"], []) is None
+        assert compute_compatibility("Some resume", None, ["Python"], ["Python"], []) is None
+        assert compute_compatibility("Some resume", "   ", ["Python"], ["Python"], []) is None
+
+    def test_portfolio_links_allowed_and_spam_tlds(self):
+        from backend.app.services.nlp import extract_links
+        text = (
+            "Profiles: https://github.com/alex https://gitlab.com/alex https://bitbucket.org/alex "
+            "https://linkedin.com/in/alex https://kaggle.com/alex https://huggingface.co/alex "
+            "https://behance.net/alex https://alexdev.io "
+            "Spam: https://spamsite.xyz https://promos.top https://phishing.click"
+        )
+        links = extract_links(text)
+        assert "https://github.com/alex" in links
+        assert "https://gitlab.com/alex" in links
+        assert "https://alexdev.io" in links
+        assert not any(".xyz" in link for link in links)
+        assert not any(".top" in link for link in links)
+        assert not any(".click" in link for link in links)
+
+    def test_no_foundational_sections_strength_when_word_count_low_or_few_skills(self):
+        sections = {"experience": True, "education": True, "skills": True}
+        s1 = generate_strengths(sections, ["Python", "FastAPI", "Docker"], 3, ["Python"], word_count=100)
+        assert not any("foundational" in s.lower() for s in s1)
+        s2 = generate_strengths(sections, ["Python"], 3, ["Python"], word_count=250)
+        assert not any("foundational" in s.lower() for s in s2)
+        s3 = generate_strengths(sections, ["Python", "FastAPI", "Docker"], 3, ["Python"], word_count=250)
+        assert any("foundational" in s.lower() for s in s3)
+
+    def test_weak_and_empty_resumes_consistent_weaknesses(self):
+        w_empty = generate_weaknesses({}, 0, {}, [], 0, 0, [])
+        w_weak = generate_weaknesses({}, 20, {}, [], 0, 0, [])
+        assert w_empty[:4] == w_weak[:4]
+        assert any("summary" in w.lower() for w in w_empty)
+        assert any("email" in w.lower() for w in w_empty)
+        assert any("phone" in w.lower() for w in w_empty)
+        assert any("brief" in w.lower() for w in w_empty)

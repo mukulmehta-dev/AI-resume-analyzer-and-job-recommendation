@@ -123,13 +123,14 @@ def run_rule_based(
     compatibility_score: Optional[int] = None
     if safe_jd:
         try:
-            compatibility_score = compute_compatibility(
+            comp_res = compute_compatibility(
                 resume_text=safe_text,
                 jd_text=safe_jd,
                 resume_skills=detected_skills,
                 matching_skills=matching_skills,
                 missing_skills=missing_skills,
             )
+            compatibility_score = int(comp_res) if comp_res is not None else None
         except Exception:
             compatibility_score = None
 
@@ -141,6 +142,7 @@ def run_rule_based(
             matching_skills=matching_skills,
             action_verb_count=action_verb_count,
             quantified_achievement_count=quantified_count,
+            word_count=word_count,
         )
     except Exception:
         strengths = []
@@ -153,6 +155,7 @@ def run_rule_based(
             missing_skills=missing_skills,
             action_verb_count=action_verb_count,
             quantified_achievement_count=quantified_count,
+            detected_skills=detected_skills,
         )
     except Exception:
         weaknesses = []

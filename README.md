@@ -27,13 +27,46 @@ Full-stack enterprise application for ATS-aligned resume analysis, deterministic
 | `UPLOAD_DIR` | No | `data/uploads` | Local disk directory for storing uploaded PDF and DOCX files |
 | `MAX_UPLOAD_MB` | No | `5` | Maximum upload size threshold in megabytes |
 | `GEMINI_API_KEY` | No | None | Google Gemini API key for optional LLM executive feedback |
-| `GEMINI_MODEL` | No | `gemini-2.5-flash` | Gemini model variant used for enrichment |
+| `GEMINI_MODEL` | No | `gemini-3.8-flash` | Primary Gemini model variant used for enrichment |
+| `GEMINI_MODEL_FALLBACKS` | No | `gemini-3.5-flash,gemini-3.1-flash-lite,gemini-2.5-flash` | Comma-separated fallback models on 404/403/429 errors |
 | `CORS_ORIGIN` | No | `http://localhost:5173` | Allowed origin for CORS headers |
 | `USE_EMBEDDINGS` | No | `false` | Enable vector embeddings for semantic similarity |
 
 ---
 
-## 3. Local Run on Windows PowerShell
+## Gemini AI Integration & Model Fallback
+
+### Obtaining an API Key
+Generate an API key from [Google AI Studio](https://aistudio.google.com/apikey).
+New keys start with the `AQ.` prefix (Google Authentication Key format), while legacy keys start with `AIza`. Both formats are supported.
+
+### Model Discovery
+To discover models supported by your key and SDK:
+
+```powershell
+python scripts/discover_models.py
+```
+
+Or programmatically:
+
+```python
+from google import genai
+client = genai.Client(api_key="YOUR_KEY")
+for model in client.models.list():
+    if "generateContent" in getattr(model, "supported_actions", []):
+        print(model.name)
+```
+
+### Multi-Model Fallback Resilience
+When `GEMINI_API_KEY` is configured:
+1. The backend attempts analysis with `GEMINI_MODEL` (30s timeout, up to 1 retry on transient error).
+2. If the model returns 404 (retired model), 403 (unauthorized model), or 429 (quota exhausted), the pipeline automatically cascades to each model in `GEMINI_MODEL_FALLBACKS`.
+3. The server logs the specific model that satisfied the request (`Analysis served by Gemini model: <name>`).
+4. If all models fail, or if `GEMINI_API_KEY` is unset, the application falls back to rule-based analysis, returns status `done` with `ai_unavailable=true`, and displays the AI-unavailable banner.
+
+---
+
+## Run locally without Docker (Windows)
 
 ### Backend Setup
 

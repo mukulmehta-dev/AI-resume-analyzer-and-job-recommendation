@@ -1,0 +1,18 @@
+services:
+  api:
+    volumes:
+      - ./backend:/app/backend:ro
+      - ./data:/app/data
+    environment:
+      ENV: development
+      DEBUG: "true"
+    ports:
+      - "8000:8000"
+
+  web:
+    ports:
+      - "5173:5173"
+
+  db:
+    ports:
+      - "5432:5432"

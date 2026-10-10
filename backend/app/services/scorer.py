@@ -1,5 +1,14 @@
 from typing import List, Dict, Any, Optional
 
+SECTION_WEIGHTS: Dict[str, float] = {
+    "skills": 0.35,
+    "experience": 0.20,
+    "education": 0.15,
+    "projects": 0.15,
+    "certifications": 0.05,
+    "structure": 0.10,
+}
+
 
 def compute_section_subscores(
     sections: Dict[str, Any],
@@ -134,32 +143,32 @@ def compute_section_subscores(
     return {
         "skills": {
             "score": skill_score,
-            "weight": 0.25,
+            "weight": SECTION_WEIGHTS["skills"],
             "explanation": skill_expl,
         },
         "experience": {
             "score": exp_score,
-            "weight": 0.25,
+            "weight": SECTION_WEIGHTS["experience"],
             "explanation": exp_expl,
         },
         "education": {
             "score": edu_score,
-            "weight": 0.15,
+            "weight": SECTION_WEIGHTS["education"],
             "explanation": edu_expl,
         },
         "projects": {
             "score": proj_score,
-            "weight": 0.15,
+            "weight": SECTION_WEIGHTS["projects"],
             "explanation": proj_expl,
         },
         "certifications": {
             "score": cert_score,
-            "weight": 0.10,
+            "weight": SECTION_WEIGHTS["certifications"],
             "explanation": cert_expl,
         },
         "structure": {
             "score": struct_score,
-            "weight": 0.10,
+            "weight": SECTION_WEIGHTS["structure"],
             "explanation": struct_expl,
         },
     }
@@ -204,8 +213,7 @@ def score_resume(
         degree_mentions=degree_mentions,
         links=links,
     )
-    total = sum(item["score"] * item["weight"] for item in subscores.values())
-    final_score = min(max(round(total), 0), 100)
+    final_score = round(sum(item["score"] * item["weight"] for item in subscores.values()))
     return ScoreResult(final_score, subscores)
 
 
@@ -216,8 +224,12 @@ def generate_strengths(
     matching_skills: List[str],
     action_verb_count: int = 0,
     quantified_achievement_count: int = 0,
+    word_count: int = 0,
 ) -> List[str]:
     strengths = []
+    if word_count >= 150 and len(detected_skills) >= 3:
+        if sections.get("experience") and sections.get("education") and sections.get("skills"):
+            strengths.append("Foundational sections complete")
     if sections.get("experience"):
         if estimated_years_of_experience >= 5:
             strengths.append(
@@ -257,13 +269,14 @@ def generate_weaknesses(
     missing_skills: List[str],
     action_verb_count: int = 0,
     quantified_achievement_count: int = 0,
+    detected_skills: Optional[List[str]] = None,
 ) -> List[str]:
     weaknesses = []
     if not sections.get("summary"):
         weaknesses.append("No professional summary or objective statement found")
-    if not contact.get("emails"):
+    if not (contact and contact.get("emails")):
         weaknesses.append("Email address not detected — ensure contact info is clearly visible")
-    if not contact.get("phones"):
+    if not (contact and contact.get("phones")):
         weaknesses.append("Phone number not found — add contact details for recruiters")
     if word_count < 200:
         weaknesses.append(
@@ -273,10 +286,14 @@ def generate_weaknesses(
         weaknesses.append(
             "Resume may be too lengthy — aim for conciseness to hold recruiter attention"
         )
-    if missing_skills:
-        weaknesses.append(f"Missing skills required by the job: {', '.join(missing_skills[:5])}")
     if not sections.get("experience"):
         weaknesses.append("No work experience section detected")
+    if detected_skills is not None and len(detected_skills) < 3:
+        weaknesses.append("Very few or no technical skills detected — add a dedicated skills section")
+    if not sections.get("education"):
+        weaknesses.append("No formal education credentials detected")
+    if missing_skills:
+        weaknesses.append(f"Missing skills required by the job: {', '.join(missing_skills[:5])}")
     if quantified_achievement_count == 0:
         weaknesses.append("No quantified achievements found — add metrics like percentages, revenue, or scale")
     if action_verb_count < 3:
@@ -316,7 +333,7 @@ def generate_recommendations(
             "priority": "high",
         })
 
-    if not contact.get("urls"):
+    if not (contact and contact.get("urls")):
         recommendations.append({
             "title": "Add LinkedIn or GitHub Profile",
             "detail": "Include your LinkedIn and/or GitHub URL to showcase your professional network and code portfolio.",
