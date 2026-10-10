@@ -69,7 +69,17 @@ jobs:
           UPLOAD_DIR: data/uploads
           PYTHONPATH: .
         run: |
-          pytest -v -rs
+          pytest -v -rs 2>&1 | tee pytest_output.log
+
+      - name: Report Pytest Results
+        if: always()
+        run: |
+          if [ -f pytest_output.log ]; then
+            echo "## Pytest Output" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            cat pytest_output.log >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
