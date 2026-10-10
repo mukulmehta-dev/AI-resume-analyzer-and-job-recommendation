@@ -292,6 +292,33 @@ class TestScorerService:
         score_without = score_resume(sections, [], {}, 50, 0, action_verb_count=0, quantified_achievement_count=0)
         assert score_with >= score_without
 
+    def test_compute_section_subscores_structure_and_weights(self):
+        sections = {"experience": True, "education": True, "skills": True, "projects": True, "certifications": True, "summary": True}
+        contact = {"emails": ["x@example.com"], "phones": ["123"], "urls": ["github.com/x"]}
+        score_res = score_resume(
+            sections=sections,
+            detected_skills=["Python", "FastAPI", "Docker", "SQL", "AWS", "Git", "Linux", "Redis", "TypeScript", "React"],
+            contact=contact,
+            word_count=500,
+            estimated_years_of_experience=6,
+            action_verb_count=8,
+            quantified_achievement_count=3,
+            degree_mentions=["Bachelor of Science"],
+            links=["github.com/x"],
+        )
+        assert isinstance(score_res, int)
+        assert score_res > 70
+        subscores = score_res.subscores
+        expected_keys = {"skills", "experience", "education", "projects", "certifications", "structure"}
+        assert set(subscores.keys()) == expected_keys
+        total_weight = sum(item["weight"] for item in subscores.values())
+        assert round(total_weight, 2) == 1.0
+        for k, v in subscores.items():
+            assert 0 <= v["score"] <= 100
+            assert 0.0 < v["weight"] <= 1.0
+            assert isinstance(v["explanation"], str)
+            assert len(v["explanation"]) > 0
+
 
 class TestMatcherService:
     def test_matching_skills_found(self):
@@ -365,6 +392,46 @@ class TestMatcherService:
         assert c1 is not None
         assert c2 is not None
 
+    def test_compatibility_separate_metrics_and_formula_assertion(self):
+        resume_text = "Experienced software engineer proficient in Python, SQL, Docker, AWS, Git."
+        jd_text = "Required: Python, SQL, Docker, AWS, Linux. Preferred: Kubernetes, Terraform."
+        resume_skills = ["Python", "SQL", "Docker", "AWS", "Git"]
+        matching, missing = match_skills(resume_skills, jd_text)
+        result = compute_compatibility(
+            resume_text,
+            jd_text,
+            resume_skills,
+            matching,
+            missing,
+        )
+        assert result is not None
+        overlap, similarity, compatibility = result
+        assert result.skill_overlap == overlap
+        assert result.semantic_similarity == similarity
+        assert result.compatibility == compatibility
+        expected_compatibility = round(100 * (0.6 * overlap + 0.4 * similarity))
+        assert compatibility == expected_compatibility
+        assert isinstance(result, int)
+
+    def test_known_sample_five_of_seven_skills_explanation(self):
+        resume_text = "Proficient in Python, React, SQL, Docker, AWS."
+        resume_skills = ["Python", "React", "SQL", "Docker", "AWS"]
+        jd_multiline = "Required skills: Python, React, SQL, Docker.\nPreferred skills: AWS, Redis, GraphQL."
+        matching, missing = match_skills(resume_skills, jd_multiline)
+        assert len(matching) == 5
+        assert len(matching) + len(missing) == 7
+        result = compute_compatibility(
+            resume_text,
+            jd_multiline,
+            resume_skills,
+            matching,
+            missing,
+        )
+        assert result is not None
+        overlap, similarity, compatibility = result
+        assert compatibility == round(100 * (0.6 * overlap + 0.4 * similarity))
+        assert compatibility > 40
+
 
 class TestPipelineService:
     def test_run_rule_based_empty_text(self):
@@ -415,6 +482,8 @@ class TestPipelineService:
         assert hasattr(result, "matching_skills")
         assert hasattr(result, "missing_skills")
         assert hasattr(result, "sections")
+        assert "skills" in result.sections
+        assert "score" in result.sections["skills"]
         assert hasattr(result, "word_count")
         assert hasattr(result, "action_verb_count")
         assert hasattr(result, "quantified_achievement_count")

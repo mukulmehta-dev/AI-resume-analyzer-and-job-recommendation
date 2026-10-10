@@ -1,5 +1,5 @@
 import re
-from typing import List, Tuple, Optional, Dict
+from typing import List, Tuple, Optional
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from backend.app.services.skills import extract_skills
@@ -15,7 +15,23 @@ _PREFERRED_MARKERS = re.compile(
     re.IGNORECASE,
 )
 
-_SENTENCE_SPLIT = re.compile(r"(?<=[.!?\n])\s+")
+_SENTENCE_SPLIT = re.compile(r"[\r\n]+|(?<=[.!?])\s+")
+
+
+class CompatibilityResult(int):
+    skill_overlap: float
+    semantic_similarity: float
+    compatibility: int
+
+    def __new__(cls, compatibility: int, skill_overlap: float, semantic_similarity: float):
+        instance = super().__new__(cls, compatibility)
+        instance.compatibility = compatibility
+        instance.skill_overlap = skill_overlap
+        instance.semantic_similarity = semantic_similarity
+        return instance
+
+    def __iter__(self):
+        return iter((self.skill_overlap, self.semantic_similarity, self.compatibility))
 
 
 def _classify_jd_sentences(jd_text: str) -> Tuple[str, str]:
@@ -23,12 +39,15 @@ def _classify_jd_sentences(jd_text: str) -> Tuple[str, str]:
     required_parts = []
     preferred_parts = []
     for s in sentences:
-        if _PREFERRED_MARKERS.search(s):
-            preferred_parts.append(s)
-        elif _REQUIRED_MARKERS.search(s):
-            required_parts.append(s)
+        s_clean = s.strip()
+        if not s_clean:
+            continue
+        if _PREFERRED_MARKERS.search(s_clean):
+            preferred_parts.append(s_clean)
+        elif _REQUIRED_MARKERS.search(s_clean):
+            required_parts.append(s_clean)
         else:
-            required_parts.append(s)
+            required_parts.append(s_clean)
     return " ".join(required_parts), " ".join(preferred_parts)
 
 
@@ -64,7 +83,7 @@ def compute_compatibility(
     resume_skills: List[str],
     matching_skills: List[str],
     missing_skills: List[str],
-) -> Optional[int]:
+) -> Optional[CompatibilityResult]:
     if not jd_text or not jd_text.strip():
         return None
 
@@ -84,7 +103,12 @@ def compute_compatibility(
     else:
         required_score = (required_match / required_total) if required_total else 0.0
         preferred_score = (preferred_match / preferred_total) if preferred_total else 0.0
-        weighted_overlap = (2 * required_score + 1 * preferred_score) / 3
+        if required_total > 0 and preferred_total > 0:
+            weighted_overlap = (2 * required_score + 1 * preferred_score) / 3
+        elif required_total > 0:
+            weighted_overlap = required_score
+        else:
+            weighted_overlap = preferred_score
 
     if settings.USE_EMBEDDINGS:
         similarity = _tfidf_similarity(resume_text, jd_text)
@@ -94,5 +118,13 @@ def compute_compatibility(
             " ".join(set(extract_skills(jd_text))),
         )
 
-    compatibility = round(100 * (0.6 * weighted_overlap + 0.4 * similarity))
-    return min(max(compatibility, 0), 100)
+    weighted_overlap_val = round(min(max(weighted_overlap, 0.0), 1.0), 4)
+    similarity_val = round(min(max(similarity, 0.0), 1.0), 4)
+    compatibility = round(100 * (0.6 * weighted_overlap_val + 0.4 * similarity_val))
+    compatibility_clamped = min(max(compatibility, 0), 100)
+
+    return CompatibilityResult(
+        compatibility=compatibility_clamped,
+        skill_overlap=weighted_overlap_val,
+        semantic_similarity=similarity_val,
+    )

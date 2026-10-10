@@ -2,7 +2,13 @@ from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 from backend.app.services.nlp import analyze_resume_text
 from backend.app.services.skills import extract_skills, get_all_skills
-from backend.app.services.scorer import score_resume, generate_strengths, generate_weaknesses, generate_recommendations
+from backend.app.services.scorer import (
+    score_resume,
+    compute_section_subscores,
+    generate_strengths,
+    generate_weaknesses,
+    generate_recommendations,
+)
 from backend.app.services.matcher import match_skills, compute_compatibility
 
 
@@ -24,7 +30,7 @@ class PipelineResult(BaseModel):
     detected_skills_with_category: List[SkillInfo]
     matching_skills: List[str]
     missing_skills: List[str]
-    sections: Dict[str, bool]
+    sections: Dict[str, Any]
     word_count: int
     estimated_years_of_experience: int
     action_verb_count: int
@@ -88,6 +94,17 @@ def run_rule_based(
             matching_skills, missing_skills = [], []
 
     try:
+        subscores = compute_section_subscores(
+            sections=sections,
+            detected_skills=detected_skills,
+            contact=contact,
+            word_count=word_count,
+            estimated_years_of_experience=years_exp,
+            action_verb_count=action_verb_count,
+            quantified_achievement_count=quantified_count,
+            degree_mentions=degree_mentions,
+            links=links,
+        )
         resume_score = score_resume(
             sections=sections,
             detected_skills=detected_skills,
@@ -96,8 +113,11 @@ def run_rule_based(
             estimated_years_of_experience=years_exp,
             action_verb_count=action_verb_count,
             quantified_achievement_count=quantified_count,
+            degree_mentions=degree_mentions,
+            links=links,
         )
     except Exception:
+        subscores = {}
         resume_score = 0
 
     compatibility_score: Optional[int] = None
@@ -171,7 +191,7 @@ def run_rule_based(
         detected_skills_with_category=detected_with_category,
         matching_skills=matching_skills,
         missing_skills=missing_skills,
-        sections=sections,
+        sections=subscores,
         word_count=word_count,
         estimated_years_of_experience=years_exp,
         action_verb_count=action_verb_count,

@@ -30,3 +30,32 @@ class UserResponse(BaseModel):
 class UserAdminUpdateRequest(BaseModel):
     is_active: Optional[bool] = None
     role: Optional[UserRole] = None
+
+
+class AdminDayCount(BaseModel):
+    date: str
+    count: int
+
+
+class AdminFailedAnalysisItem(BaseModel):
+    id: uuid.UUID
+    resume_id: uuid.UUID
+    resume_filename: Optional[str] = None
+    error: Optional[str] = None
+    created_at: datetime
+
+
+class AdminStatsResponse(BaseModel):
+    users: int
+    resumes: int
+    analyses: int
+    failed_analyses: int
+    analyses_last_7_days: list[AdminDayCount]
+    recent_failures: list[AdminFailedAnalysisItem]
+
+
+class AdminUsersResponse(BaseModel):
+    items: list[UserResponse]
+    total: int
+    page: int
+    page_size: int

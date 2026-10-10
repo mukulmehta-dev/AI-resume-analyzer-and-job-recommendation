@@ -1,0 +1,69 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: resume_analyzer
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d resume_analyzer"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    command: sh -c "alembic upgrade head && uvicorn backend.app.main:app --host 0.0.0.0 --port 8000"
+    environment:
+      DATABASE_URL: postgresql+psycopg2://postgres:postgres@db:5432/resume_analyzer
+      JWT_SECRET: replace_with_a_secure_random_jwt_secret_key_in_production
+      ENV: production
+      ADMIN_EMAIL: admin@example.com
+      ADMIN_PASSWORD: AdminSecurePassword2026!
+      TRUSTED_PROXY: "true"
+      UPLOAD_DIR: /app/data/uploads
+      MAX_UPLOAD_MB: 5
+      GEMINI_API_KEY: ""
+      GEMINI_MODEL: gemini-2.5-flash
+      CORS_ORIGIN: http://localhost
+      USE_EMBEDDINGS: "false"
+    volumes:
+      - uploads_data:/app/data/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    expose:
+      - "80"
+
+  proxy:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - api
+      - web
+
+volumes:
+  postgres_data:
+  uploads_data:

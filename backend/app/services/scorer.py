@@ -1,111 +1,216 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 
-_SECTION_WEIGHTS: Dict[str, int] = {
-    "contact": 5,
-    "summary": 10,
-    "experience": 25,
-    "education": 15,
-    "skills": 20,
-    "projects": 10,
-    "certifications": 5,
-    "awards": 3,
-    "publications": 2,
-    "languages": 2,
-    "volunteer": 2,
-    "interests": 1,
-}
-
-_OPTIMAL_WORD_COUNT_LOW = 300
-_OPTIMAL_WORD_COUNT_HIGH = 800
-_WORD_COUNT_MAX_SCORE = 5
-
-_SKILLS_BONUS_THRESHOLDS = [(20, 15), (10, 10), (5, 6), (2, 3), (0, 0)]
-_EXP_SCORE_TABLE = [(10, 15), (5, 10), (2, 5), (1, 3), (0, 0)]
-_ACTION_VERB_THRESHOLDS = [(10, 5), (5, 3), (2, 1), (0, 0)]
-_QUANTIFIED_THRESHOLDS = [(5, 5), (2, 3), (1, 1), (0, 0)]
-
-
-def _section_score(sections: Dict[str, bool]) -> int:
-    total = sum(
-        _SECTION_WEIGHTS.get(section, 1)
-        for section, present in sections.items()
-        if present
-    )
-    return min(total, 45)
-
-
-def _word_count_score(word_count: int) -> int:
-    if _OPTIMAL_WORD_COUNT_LOW <= word_count <= _OPTIMAL_WORD_COUNT_HIGH:
-        return _WORD_COUNT_MAX_SCORE
-    if word_count < _OPTIMAL_WORD_COUNT_LOW:
-        ratio = word_count / _OPTIMAL_WORD_COUNT_LOW
-        return max(0, round(ratio * _WORD_COUNT_MAX_SCORE))
-    ratio = _OPTIMAL_WORD_COUNT_HIGH / word_count
-    return max(1, round(ratio * _WORD_COUNT_MAX_SCORE))
-
-
-def _skills_score(skill_count: int) -> int:
-    for threshold, score in _SKILLS_BONUS_THRESHOLDS:
-        if skill_count > threshold:
-            return score
-    return 0
-
-
-def _experience_score(years: int) -> int:
-    for threshold, score in _EXP_SCORE_TABLE:
-        if years >= threshold:
-            return score
-    return 0
-
-
-def _contact_score(contact: Dict[str, Any]) -> int:
-    score = 0
-    if contact.get("emails"):
-        score += 5
-    if contact.get("phones"):
-        score += 3
-    if contact.get("urls"):
-        score += 2
-    return min(score, 10)
-
-
-def _action_verb_score(count: int) -> int:
-    for threshold, score in _ACTION_VERB_THRESHOLDS:
-        if count > threshold:
-            return score
-    return 0
-
-
-def _quantified_score(count: int) -> int:
-    for threshold, score in _QUANTIFIED_THRESHOLDS:
-        if count >= threshold:
-            return score
-    return 0
-
-
-def score_resume(
-    sections: Dict[str, bool],
+def compute_section_subscores(
+    sections: Dict[str, Any],
     detected_skills: List[str],
     contact: Dict[str, Any],
     word_count: int,
     estimated_years_of_experience: int,
     action_verb_count: int = 0,
     quantified_achievement_count: int = 0,
-) -> int:
-    total = 0
-    total += _section_score(sections)
-    total += _word_count_score(word_count)
-    total += _skills_score(len(detected_skills))
-    total += _experience_score(estimated_years_of_experience)
-    total += _contact_score(contact)
-    total += _action_verb_score(action_verb_count)
-    total += _quantified_score(quantified_achievement_count)
-    return min(max(total, 0), 100)
+    degree_mentions: Optional[List[str]] = None,
+    links: Optional[List[str]] = None,
+) -> Dict[str, Dict[str, Any]]:
+    skill_count = len(detected_skills)
+    if skill_count >= 15:
+        skill_score = 100
+        skill_expl = f"Extensive skill profile with {skill_count} detected competencies."
+    elif skill_count >= 10:
+        skill_score = 90
+        skill_expl = f"Strong skill breadth with {skill_count} detected skills."
+    elif skill_count >= 6:
+        skill_score = 75
+        skill_expl = f"Good technical core with {skill_count} skills."
+    elif skill_count >= 3:
+        skill_score = 55
+        skill_expl = f"Moderate skill coverage with {skill_count} skills."
+    elif skill_count >= 1:
+        skill_score = 30
+        skill_expl = f"Limited skill presence with {skill_count} identified skill(s)."
+    else:
+        skill_score = 0
+        skill_expl = "No industry-standard skills detected in the document."
+
+    exp_present = bool(sections.get("experience"))
+    exp_score = 0
+    if exp_present:
+        exp_score += 40
+    if estimated_years_of_experience >= 10:
+        exp_score += 30
+    elif estimated_years_of_experience >= 5:
+        exp_score += 25
+    elif estimated_years_of_experience >= 2:
+        exp_score += 15
+    elif estimated_years_of_experience >= 1:
+        exp_score += 10
+
+    if action_verb_count >= 8:
+        exp_score += 15
+    elif action_verb_count >= 4:
+        exp_score += 10
+    elif action_verb_count >= 1:
+        exp_score += 5
+
+    if quantified_achievement_count >= 3:
+        exp_score += 15
+    elif quantified_achievement_count >= 1:
+        exp_score += 10
+
+    exp_score = min(exp_score, 100)
+    exp_expl = (
+        f"Work experience present with {estimated_years_of_experience}+ estimated years, "
+        f"{action_verb_count} action verbs, and {quantified_achievement_count} quantified metric(s)."
+        if exp_present
+        else "No formal work experience section detected."
+    )
+
+    edu_present = bool(sections.get("education"))
+    degrees = degree_mentions or []
+    if edu_present and degrees:
+        edu_score = 100
+        edu_expl = f"Formal education verified with degree credential(s): {', '.join(degrees)}."
+    elif edu_present:
+        edu_score = 75
+        edu_expl = "Education section detected without explicit degree title keywords."
+    elif degrees:
+        edu_score = 50
+        edu_expl = f"Degree mention(s) identified ({', '.join(degrees)}), but dedicated section is missing."
+    else:
+        edu_score = 0
+        edu_expl = "No education section or academic degree credentials found."
+
+    proj_present = bool(sections.get("projects"))
+    url_links = links or (contact.get("urls") if contact else [])
+    if proj_present and url_links:
+        proj_score = 100
+        proj_expl = f"Project section present with {len(url_links)} portfolio/repository link(s)."
+    elif proj_present:
+        proj_score = 80
+        proj_expl = "Projects section identified with demonstrable deliverables."
+    elif url_links:
+        proj_score = 40
+        proj_expl = "Portfolio links detected without dedicated projects header."
+    else:
+        proj_score = 0
+        proj_expl = "No project portfolio or code repositories referenced."
+
+    cert_present = bool(sections.get("certifications"))
+    cert_score = 100 if cert_present else 0
+    cert_expl = (
+        "Professional credentials and industry certifications validated."
+        if cert_present
+        else "No certifications or licensing section detected."
+    )
+
+    has_email = bool(contact and contact.get("emails"))
+    has_phone = bool(contact and contact.get("phones"))
+    has_urls = bool(contact and contact.get("urls"))
+    has_summary = bool(sections.get("summary"))
+
+    struct_score = 0
+    if has_email:
+        struct_score += 30
+    if has_phone:
+        struct_score += 20
+    if has_urls:
+        struct_score += 10
+    if has_summary:
+        struct_score += 20
+
+    if 300 <= word_count <= 800:
+        struct_score += 20
+    elif 200 <= word_count <= 1100:
+        struct_score += 10
+    elif word_count > 0:
+        struct_score += 5
+
+    struct_score = min(struct_score, 100)
+    struct_expl = (
+        f"Document length: {word_count} words. Summary: {'present' if has_summary else 'missing'}. "
+        f"Contact: {'complete' if has_email and has_phone else 'partial'}."
+    )
+
+    return {
+        "skills": {
+            "score": skill_score,
+            "weight": 0.25,
+            "explanation": skill_expl,
+        },
+        "experience": {
+            "score": exp_score,
+            "weight": 0.25,
+            "explanation": exp_expl,
+        },
+        "education": {
+            "score": edu_score,
+            "weight": 0.15,
+            "explanation": edu_expl,
+        },
+        "projects": {
+            "score": proj_score,
+            "weight": 0.15,
+            "explanation": proj_expl,
+        },
+        "certifications": {
+            "score": cert_score,
+            "weight": 0.10,
+            "explanation": cert_expl,
+        },
+        "structure": {
+            "score": struct_score,
+            "weight": 0.10,
+            "explanation": struct_expl,
+        },
+    }
+
+
+class ScoreResult(int):
+    score: int
+    subscores: Dict[str, Dict[str, Any]]
+
+    def __new__(cls, score: int, subscores: Dict[str, Dict[str, Any]]):
+        instance = super().__new__(cls, score)
+        instance.score = score
+        instance.subscores = subscores
+        return instance
+
+    def __iter__(self):
+        return iter((self.score, self.subscores))
+
+
+score_sections = compute_section_subscores
+
+
+def score_resume(
+    sections: Dict[str, Any],
+    detected_skills: List[str],
+    contact: Dict[str, Any],
+    word_count: int,
+    estimated_years_of_experience: int,
+    action_verb_count: int = 0,
+    quantified_achievement_count: int = 0,
+    degree_mentions: Optional[List[str]] = None,
+    links: Optional[List[str]] = None,
+) -> ScoreResult:
+    subscores = compute_section_subscores(
+        sections=sections,
+        detected_skills=detected_skills,
+        contact=contact,
+        word_count=word_count,
+        estimated_years_of_experience=estimated_years_of_experience,
+        action_verb_count=action_verb_count,
+        quantified_achievement_count=quantified_achievement_count,
+        degree_mentions=degree_mentions,
+        links=links,
+    )
+    total = sum(item["score"] * item["weight"] for item in subscores.values())
+    final_score = min(max(round(total), 0), 100)
+    return ScoreResult(final_score, subscores)
 
 
 def generate_strengths(
-    sections: Dict[str, bool],
+    sections: Dict[str, Any],
     detected_skills: List[str],
     estimated_years_of_experience: int,
     matching_skills: List[str],
@@ -146,7 +251,7 @@ def generate_strengths(
 
 
 def generate_weaknesses(
-    sections: Dict[str, bool],
+    sections: Dict[str, Any],
     word_count: int,
     contact: Dict[str, Any],
     missing_skills: List[str],
@@ -180,7 +285,7 @@ def generate_weaknesses(
 
 
 def generate_recommendations(
-    sections: Dict[str, bool],
+    sections: Dict[str, Any],
     detected_skills: List[str],
     missing_skills: List[str],
     word_count: int,

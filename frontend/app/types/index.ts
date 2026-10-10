@@ -32,6 +32,12 @@ export interface SkillWithCategory {
   category: string;
 }
 
+export interface SectionSubScore {
+  score: number;
+  weight: number;
+  explanation: string;
+}
+
 export interface Analysis {
   id: string;
   user_id: string;
@@ -44,7 +50,7 @@ export interface Analysis {
   detected_skills_with_category?: SkillWithCategory[];
   matching_skills: string[];
   missing_skills: string[];
-  sections: Record<string, boolean>;
+  sections: Record<string, boolean | SectionSubScore>;
   strengths: string[];
   weaknesses: string[];
   recommendations: RecommendationItem[];
@@ -65,4 +71,26 @@ export interface AnalysisListResponse {
 export interface PaginatedResumes {
   items: Resume[];
   total: number;
+}
+
+export interface AdminStats {
+  users: number;
+  resumes: number;
+  analyses: number;
+  failed_analyses: number;
+  analyses_last_7_days: { date: string; count: number }[];
+  recent_failures: {
+    id: string;
+    resume_id: string;
+    resume_filename?: string | null;
+    error: string | null;
+    created_at: string;
+  }[];
+}
+
+export interface AdminUsersResponse {
+  items: User[];
+  total: number;
+  page: number;
+  page_size: number;
 }

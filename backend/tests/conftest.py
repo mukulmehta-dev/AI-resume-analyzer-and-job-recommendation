@@ -8,7 +8,12 @@ from backend.app.db.session import Base, get_db
 from backend.app.core.ratelimit import requests_tracker
 import backend.app.routers.analyses as analyses_router
 
-test_db_url = os.getenv("TEST_DATABASE_URL", "sqlite:///./test_runner.db")
+test_db_url = os.getenv("TEST_DATABASE_URL")
+if not test_db_url:
+    test_db_url = "sqlite:///./test_runner.db"
+elif "sqlite" in test_db_url and os.getenv("REQUIRE_POSTGRES", "").lower() in ("1", "true"):
+    raise RuntimeError("Silent fallback to SQLite is forbidden. PostgreSQL is required via TEST_DATABASE_URL.")
+
 connect_args = {"check_same_thread": False} if test_db_url.startswith("sqlite") else {}
 engine = create_engine(test_db_url, connect_args=connect_args)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

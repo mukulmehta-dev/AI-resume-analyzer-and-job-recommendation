@@ -1,5 +1,6 @@
 import os
 import io
+import zipfile
 import fitz
 import docx
 from backend.app.models.resume import Resume
@@ -231,3 +232,51 @@ def test_per_user_limit_50_resumes(client, db_session):
     res = client.post("/api/resumes", files=files)
     assert res.status_code == 409
     assert "limit of 50 resumes reached" in res.json()["detail"].lower()
+
+
+def test_docx_zip_bomb_rejected(client):
+    reg = client.post("/api/auth/register", json={
+        "name": "Zip Bomb Tester",
+        "email": "zipbomb@example.com",
+        "password": "password123"
+    })
+    assert reg.status_code == 201
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("word/document.xml", b"0" * (55 * 1024 * 1024))
+    zip_bomb_bytes = buf.getvalue()
+
+    files = {"file": ("bomb.docx", zip_bomb_bytes, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")}
+    res = client.post("/api/resumes", files=files)
+    assert res.status_code == 422
+    assert "exceeds maximum allowed limit of 50mb" in res.json()["detail"].lower() or "suspicious compression ratio" in res.json()["detail"].lower()
+
+
+def test_streaming_oversize_upload_aborted(client):
+    reg = client.post("/api/auth/register", json={
+        "name": "Stream Tester",
+        "email": "streamtest@example.com",
+        "password": "password123"
+    })
+    assert reg.status_code == 201
+
+    class ChunkStream(io.RawIOBase):
+        def __init__(self, total_size, chunk_size=64 * 1024):
+            self.total_size = total_size
+            self.chunk_size = chunk_size
+            self.sent = 0
+
+        def readinto(self, b):
+            if self.sent >= self.total_size:
+                return 0
+            to_read = min(len(b), self.total_size - self.sent)
+            b[:to_read] = b"A" * to_read
+            self.sent += to_read
+            return to_read
+
+    stream_content = ChunkStream(6 * 1024 * 1024)
+    files = {"file": ("oversize_stream.pdf", stream_content, "application/pdf")}
+    res = client.post("/api/resumes", files=files)
+    assert res.status_code == 422
+    assert "exceeds maximum allowed limit" in res.json()["detail"].lower()

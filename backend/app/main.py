@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.app.core.config import settings
 from backend.app.db.session import engine, Base, SessionLocal
 from backend.app.db.seed import seed_admin
+from backend.app.core.logging import setup_logging
 from backend.app.routers import auth, resumes, analyses, admin
 from backend.app.models.analysis import Analysis, AnalysisStatus
 import backend.app.models
@@ -29,6 +30,7 @@ def _mark_stale_pending_failed(db) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    setup_logging()
     Base.metadata.create_all(bind=engine)
     with SessionLocal() as db:
         seed_admin(db)

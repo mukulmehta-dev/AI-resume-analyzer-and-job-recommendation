@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router";
 import { api } from "../lib/api";
 import { useToast } from "../components/Toast";
-import type { Analysis, SkillWithCategory } from "../types";
+import type { Analysis, SkillWithCategory, SectionSubScore } from "../types";
 import {
   RotateCcw,
   ArrowLeft,
@@ -18,6 +18,18 @@ import {
 } from "lucide-react";
 
 const POLL_INTERVAL = 2000;
+
+const SKILL_CATEGORIES: { key: string; label: string; aliases: string[] }[] = [
+  { key: "languages", label: "Languages", aliases: ["languages", "language"] },
+  { key: "frameworks", label: "Frameworks", aliases: ["frameworks", "framework", "libraries"] },
+  { key: "databases", label: "Databases", aliases: ["databases", "database"] },
+  { key: "cloud", label: "Cloud", aliases: ["cloud"] },
+  { key: "devops", label: "DevOps", aliases: ["devops", "ci/cd"] },
+  { key: "data_ml", label: "Data / ML", aliases: ["data_ml", "data/ml", "ml", "ai", "data"] },
+  { key: "security", label: "Security", aliases: ["security"] },
+  { key: "tools", label: "Tools", aliases: ["tools", "tool"] },
+  { key: "soft_skills", label: "Soft Skills", aliases: ["soft_skills", "soft skills", "soft"] },
+];
 
 const SECTION_EXPLANATIONS: Record<string, string> = {
   contact: "Direct contact info and portfolio links for recruiters",
@@ -276,15 +288,35 @@ export default function AnalysisPage() {
     );
   }
 
-  const categoryGroups: Record<string, string[]> = {};
+  const categoryMap: Record<string, string[]> = {
+    languages: [],
+    frameworks: [],
+    databases: [],
+    cloud: [],
+    devops: [],
+    data_ml: [],
+    security: [],
+    tools: [],
+    soft_skills: [],
+    other: [],
+  };
+
   if (analysis.detected_skills_with_category && analysis.detected_skills_with_category.length > 0) {
     analysis.detected_skills_with_category.forEach((item: SkillWithCategory) => {
-      const cat = item.category || "general";
-      if (!categoryGroups[cat]) categoryGroups[cat] = [];
-      categoryGroups[cat].push(item.name);
+      const rawCat = (item.category || "").toLowerCase().trim();
+      const matched = SKILL_CATEGORIES.find(
+        (c) => c.key === rawCat || c.aliases.includes(rawCat)
+      );
+      if (matched) {
+        categoryMap[matched.key].push(item.name);
+      } else {
+        categoryMap.other.push(item.name);
+      }
     });
-  } else {
-    categoryGroups["general"] = analysis.detected_skills || [];
+  } else if (analysis.detected_skills) {
+    analysis.detected_skills.forEach((skill) => {
+      categoryMap.other.push(skill);
+    });
   }
 
   const sectionEntries = Object.entries(analysis.sections || {});
@@ -470,22 +502,73 @@ export default function AnalysisPage() {
           <Layers className="w-5 h-5 text-indigo-400" /> Detected Skills by Category
         </h2>
 
-        <div className="space-y-5">
-          {Object.entries(categoryGroups).map(([cat, skills]) => (
-            <div key={cat} className="space-y-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                {cat} ({skills.length})
-              </span>
-              <div className="flex flex-wrap gap-2">
-                {skills.map((skill) => {
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {SKILL_CATEGORIES.map((cat) => {
+            const skills = categoryMap[cat.key] || [];
+            return (
+              <div
+                key={cat.key}
+                className="p-4 rounded-xl bg-slate-900/50 border border-slate-700/50 flex flex-col justify-between space-y-3"
+              >
+                <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                    {cat.label}
+                  </span>
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      skills.length > 0
+                        ? "bg-indigo-500/20 text-indigo-300"
+                        : "bg-slate-800 text-slate-500"
+                    }`}
+                  >
+                    {skills.length}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5 min-h-[32px] items-center">
+                  {skills.length === 0 ? (
+                    <span className="text-xs text-slate-500 italic">None detected</span>
+                  ) : (
+                    skills.map((skill) => {
+                      const isMatch = analysis.matching_skills.includes(skill);
+                      return (
+                        <span
+                          key={skill}
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+                            isMatch
+                              ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                              : "bg-indigo-500/20 text-indigo-300 border-indigo-500/30"
+                          }`}
+                        >
+                          {isMatch && <CheckCircle2 className="w-3 h-3 text-emerald-400" />}
+                          {skill}
+                        </span>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          {categoryMap.other.length > 0 && (
+            <div className="p-4 rounded-xl bg-slate-900/50 border border-slate-700/50 flex flex-col justify-between space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                  Other / Uncategorized
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">
+                  {categoryMap.other.length}
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1.5 min-h-[32px] items-center">
+                {categoryMap.other.map((skill) => {
                   const isMatch = analysis.matching_skills.includes(skill);
                   return (
                     <span
                       key={skill}
-                      className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold border ${
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium border ${
                         isMatch
                           ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
-                          : "bg-indigo-500/20 text-indigo-300 border-indigo-500/30"
+                          : "bg-slate-700/50 text-slate-300 border-slate-600/50"
                       }`}
                     >
                       {isMatch && <CheckCircle2 className="w-3 h-3 text-emerald-400" />}
@@ -495,7 +578,7 @@ export default function AnalysisPage() {
                 })}
               </div>
             </div>
-          ))}
+          )}
         </div>
 
         {analysis.missing_skills.length > 0 && (
@@ -519,44 +602,67 @@ export default function AnalysisPage() {
       </div>
 
       {sectionEntries.length > 0 && (
-        <div className="p-6 rounded-2xl bg-slate-800/60 border border-slate-700/60 space-y-4">
-          <h2 className="text-base font-bold text-white flex items-center gap-2">
-            <FileText className="w-5 h-5 text-indigo-400" /> Resume Section Breakdown & Explanations
-          </h2>
+        <div className="p-6 rounded-2xl bg-slate-800/60 border border-slate-700/60 space-y-5">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-700/60">
+            <div>
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <FileText className="w-5 h-5 text-indigo-400" /> Section Sub-Scores & Structural Breakdown
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Evaluated against structural benchmarks with weighted contribution to final score.
+              </p>
+            </div>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {sectionEntries.map(([name, present]) => {
+            {sectionEntries.map(([name, rawVal]) => {
+              const isObj = typeof rawVal === "object" && rawVal !== null;
+              const subObj = isObj ? (rawVal as SectionSubScore) : null;
+              const score = subObj ? subObj.score : rawVal ? 100 : 0;
+              const weightPct = subObj && subObj.weight ? Math.round(subObj.weight * 100) : null;
               const explanation =
+                subObj?.explanation ??
                 SECTION_EXPLANATIONS[name.toLowerCase()] ??
                 `Standard ${name.replace(/_/g, " ")} section in resume structure`;
+
+              const barColor =
+                score >= 70 ? "bg-emerald-500" : score >= 40 ? "bg-amber-500" : "bg-rose-500";
+              const scoreColor =
+                score >= 70 ? "text-emerald-400" : score >= 40 ? "text-amber-400" : "text-rose-400";
 
               return (
                 <div
                   key={name}
-                  className="p-3.5 rounded-xl bg-slate-900/40 border border-slate-700/50 flex items-start justify-between gap-3"
+                  className="p-4 rounded-xl bg-slate-900/40 border border-slate-700/50 space-y-3 flex flex-col justify-between"
                 >
                   <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-white text-sm capitalize">
-                        {name.replace(/_/g, " ")}
-                      </span>
-                      <span
-                        className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                          present
-                            ? "bg-emerald-500/20 text-emerald-300"
-                            : "bg-slate-700 text-slate-400"
-                        }`}
-                      >
-                        {present ? "Present" : "Missing"}
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-white text-sm capitalize">
+                          {name.replace(/_/g, " ")}
+                        </span>
+                        {weightPct !== null && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                            Weight: {weightPct}%
+                          </span>
+                        )}
+                      </div>
+                      <span className={`text-xs font-extrabold ${scoreColor}`}>
+                        {score} / 100
                       </span>
                     </div>
-                    <p className="text-xs text-slate-400 mt-1">{explanation}</p>
+
+                    <div className="w-full bg-slate-800/80 rounded-full h-2.5 overflow-hidden border border-slate-700/40">
+                      <div
+                        className={`h-full rounded-full transition-all duration-700 ease-out ${barColor}`}
+                        style={{ width: `${Math.min(100, Math.max(0, score))}%` }}
+                      />
+                    </div>
                   </div>
-                  {present ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                  ) : (
-                    <HelpCircle className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
-                  )}
+
+                  <p className="text-xs text-slate-400 leading-relaxed pt-1">
+                    {explanation}
+                  </p>
                 </div>
               );
             })}
