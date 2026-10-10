@@ -142,7 +142,7 @@ jobs:
           JWT_SECRET: test_jwt_secret_for_docker_e2e_32chars
           ENV: test
         run: |
-          docker compose up -d --wait
+          docker compose up -d --build --wait
 
       - name: Run E2E Verification
         env:

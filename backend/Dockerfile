@@ -1,4 +1,4 @@
-FROM python:3.13-slim
+﻿FROM python:3.13-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -20,7 +20,7 @@ RUN useradd -m -u 1000 appuser && \
     mkdir -p /app/data/uploads && \
     chown -R appuser:appuser /app
 
-COPY --chown=appuser:appuser . /app/backend
+COPY --chown=appuser:appuser . /app
 
 USER 1000:1000
 
