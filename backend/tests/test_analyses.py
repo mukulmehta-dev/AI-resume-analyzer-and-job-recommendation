@@ -2,7 +2,7 @@ import io
 import uuid
 import time
 from unittest.mock import patch
-import fitz
+import pymupdf
 import pytest
 from backend.app.models.analysis import Analysis, AnalysisStatus
 from backend.app.services.gemini import GeminiUnavailable
@@ -26,7 +26,7 @@ _RESUME_TEXT = (
 
 
 def _make_pdf(text: str = _RESUME_TEXT) -> bytes:
-    doc = fitz.open()
+    doc = pymupdf.open()
     page = doc.new_page()
     page.insert_text((50, 72), text)
     return doc.tobytes()
@@ -435,3 +435,86 @@ class TestGeminiModelFallbacks:
 
         assert result["model_used"] == "gemini-fallback"
         assert result["strengths"] == ["Strong skill"]
+
+
+class TestGeminiAutoModelSelection:
+    def test_auto_model_selects_first_successful_candidate(self, monkeypatch):
+        from unittest.mock import MagicMock, patch
+        from backend.app.services.gemini import enhance_analysis
+        import backend.app.services.gemini as gemini_mod
+        from backend.app.core.config import settings
+
+        monkeypatch.setattr(settings, "GEMINI_API_KEY", "test_key_auto")
+        monkeypatch.setattr(settings, "GEMINI_MODEL", "auto")
+        monkeypatch.setattr(settings, "GEMINI_MODEL_FALLBACKS", "")
+        monkeypatch.setattr(gemini_mod, "_CACHED_AUTO_MODEL", None)
+
+        m1 = MagicMock()
+        m1.name = "models/gemini-candidate-fail-flash"
+        m1.supported_actions = ["generateContent"]
+
+        m2 = MagicMock()
+        m2.name = "models/gemini-candidate-ok-flash"
+        m2.supported_actions = ["generateContent"]
+
+        mock_client = MagicMock()
+        mock_client.models.list.return_value = [m1, m2]
+
+        analysis_resp = MagicMock()
+        analysis_resp.text = '{"strengths": ["Auto selected model strength"], "weaknesses": [], "recommendations": [], "summary_feedback": "Great"}'
+
+        def mock_generate(model, contents, **kwargs):
+            if model == "gemini-candidate-fail-flash":
+                raise Exception("404 NOT_FOUND")
+            if contents == "Reply with the single word OK":
+                probe_resp = MagicMock()
+                probe_resp.text = "OK"
+                return probe_resp
+            return analysis_resp
+
+        mock_client.models.generate_content.side_effect = mock_generate
+
+        with patch("backend.app.services.gemini.genai.Client", return_value=mock_client):
+            res = enhance_analysis(
+                resume_facts={"word_count": 200, "estimated_years_of_experience": 5, "action_verb_count": 5, "quantified_achievement_count": 2, "degree_mentions": ["B.S."]},
+                jd_text="Required: Python",
+                detected_skills=["Python"],
+                matching_skills=["Python"],
+                missing_skills=[],
+                resume_score=85,
+                sections={"skills": True},
+            )
+
+        assert res["model_used"] == "gemini-candidate-ok-flash"
+        assert res["strengths"] == ["Auto selected model strength"]
+        assert gemini_mod._CACHED_AUTO_MODEL == "gemini-candidate-ok-flash"
+
+    def test_auto_model_selection_fails_when_all_fail(self, monkeypatch):
+        from unittest.mock import MagicMock, patch
+        import backend.app.services.gemini as gemini_mod
+        from backend.app.services.gemini import enhance_analysis, GeminiUnavailable
+        from backend.app.core.config import settings
+
+        monkeypatch.setattr(settings, "GEMINI_API_KEY", "test_key_auto")
+        monkeypatch.setattr(settings, "GEMINI_MODEL", "auto")
+        monkeypatch.setattr(gemini_mod, "_CACHED_AUTO_MODEL", None)
+
+        m1 = MagicMock()
+        m1.name = "models/gemini-broken-flash"
+        m1.supported_actions = ["generateContent"]
+
+        mock_client = MagicMock()
+        mock_client.models.list.return_value = [m1]
+        mock_client.models.generate_content.side_effect = Exception("500 internal error")
+
+        with patch("backend.app.services.gemini.genai.Client", return_value=mock_client):
+            with pytest.raises(GeminiUnavailable):
+                enhance_analysis(
+                    resume_facts={"word_count": 200, "estimated_years_of_experience": 5, "action_verb_count": 5, "quantified_achievement_count": 2, "degree_mentions": ["B.S."]},
+                    jd_text="Required: Python",
+                    detected_skills=["Python"],
+                    matching_skills=["Python"],
+                    missing_skills=[],
+                    resume_score=85,
+                    sections={"skills": True},
+                )

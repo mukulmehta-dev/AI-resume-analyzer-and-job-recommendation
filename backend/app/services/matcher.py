@@ -1,5 +1,6 @@
 import re
 from typing import List, Tuple, Optional
+from decimal import Decimal, ROUND_HALF_UP
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from backend.app.services.skills import extract_skills
@@ -16,20 +17,27 @@ _PREFERRED_MARKERS = re.compile(
 _SENTENCE_SPLIT = re.compile(r"[\r\n]+|(?<=[.!?])\s+")
 
 
+def round_half_up(val: float) -> int:
+    return int(Decimal(str(float(val))).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+
 class CompatibilityResult(int):
     skill_overlap: float
     semantic_similarity: float
+    normalized_similarity: float
     compatibility: int
 
-    def __new__(cls, compatibility: int, skill_overlap: float, semantic_similarity: float):
+    def __new__(cls, compatibility: int, skill_overlap: float, semantic_similarity: float, normalized_similarity: float = 0.0):
         instance = super().__new__(cls, compatibility)
         instance.compatibility = compatibility
         instance.skill_overlap = skill_overlap
         instance.semantic_similarity = semantic_similarity
+        instance.normalized_similarity = normalized_similarity
         return instance
 
     def __iter__(self):
         return iter((self.skill_overlap, self.semantic_similarity, self.compatibility))
+
 
 
 def _classify_jd_sentences(jd_text: str) -> Tuple[str, str]:
@@ -116,11 +124,13 @@ def compute_compatibility(
 
     weighted_overlap_val = round(min(max(weighted_overlap, 0.0), 1.0), 4)
     similarity_val = round(min(max(similarity, 0.0), 1.0), 4)
-    compatibility = round(100 * (0.6 * weighted_overlap_val + 0.4 * similarity_val))
+    normalized_similarity_val = round(min(1.0, similarity_val / 0.2), 4)
+    compatibility = round_half_up(100 * (0.75 * weighted_overlap_val + 0.25 * normalized_similarity_val))
     compatibility_clamped = min(max(compatibility, 0), 100)
 
     return CompatibilityResult(
         compatibility=compatibility_clamped,
         skill_overlap=weighted_overlap_val,
         semantic_similarity=similarity_val,
+        normalized_similarity=normalized_similarity_val,
     )

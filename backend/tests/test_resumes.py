@@ -1,13 +1,13 @@
 import os
 import io
 import zipfile
-import fitz
+import pymupdf
 import docx
 from backend.app.models.resume import Resume
 
 
 def create_sample_pdf(page_count: int = 1) -> bytes:
-    doc = fitz.open()
+    doc = pymupdf.open()
     for _ in range(page_count):
         page = doc.new_page()
         page.insert_text((50, 72), "Alex Morgan\nSoftware Engineer\nExpert in Python, FastAPI, React, SQL, and Docker development.")

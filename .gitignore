@@ -31,3 +31,4 @@ review-package
 .DS_Store
 Thumbs.db
 *.log
+*.exe

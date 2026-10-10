@@ -1,7 +1,8 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 
 $port = 5432
 $hostName = "localhost"
+$env:PGPASSWORD = "postgres"
 
 Write-Output "Checking reachability of PostgreSQL at ${hostName}:${port}..."
 $tcpCheck = Test-NetConnection -ComputerName $hostName -Port $port -WarningAction SilentlyContinue
@@ -45,9 +46,17 @@ Write-Output "Running alembic migrations: downgrade base..."
 Write-Output "Running alembic migrations: upgrade head..."
 & $alembicCmd upgrade head
 
+$pythonCmd = "backend\.venv\Scripts\python.exe"
+if (-not (Test-Path $pythonCmd)) {
+    $pythonCmd = "python"
+}
+
 Write-Output "Running pytest suite..."
 $testResultsFile = "backend\test-results.txt"
-cmd /c "$pytestCmd -v -rs > $testResultsFile 2>&1"
+$dbHeaderCmd = "$pythonCmd -c ""from backend.app.db.session import engine; import sqlalchemy; conn = engine.connect(); ver = conn.execute(sqlalchemy.text('SELECT version()')).scalar(); conn.close(); print(f'Engine Dialect: {engine.dialect.name}\nDatabase Version: {ver}\n' + '='*80)"""
+$headerText = cmd /c $dbHeaderCmd
+Set-Content -Path $testResultsFile -Value $headerText
+cmd /c "$pytestCmd -v -rs >> $testResultsFile 2>&1"
 Get-Content -Path $testResultsFile
 
 Write-Output "Pytest completed. Results saved to $testResultsFile."

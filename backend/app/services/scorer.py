@@ -1,4 +1,10 @@
 from typing import List, Dict, Any, Optional
+from decimal import Decimal, ROUND_HALF_UP
+
+
+def round_half_up(val: float) -> int:
+    return int(Decimal(str(float(val))).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
 
 SECTION_WEIGHTS: Dict[str, float] = {
     "skills": 0.35,
@@ -213,7 +219,7 @@ def score_resume(
         degree_mentions=degree_mentions,
         links=links,
     )
-    final_score = round(sum(item["score"] * item["weight"] for item in subscores.values()))
+    final_score = round_half_up(sum(item["score"] * item["weight"] for item in subscores.values()))
     return ScoreResult(final_score, subscores)
 
 
