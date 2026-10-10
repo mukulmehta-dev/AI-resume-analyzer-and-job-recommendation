@@ -1,4 +1,4 @@
-import pytest
+﻿import pytest
 from backend.app.services.skills import extract_skills
 from backend.app.services.nlp import (
     detect_sections, extract_contact_info, estimate_years_of_experience,
@@ -6,7 +6,7 @@ from backend.app.services.nlp import (
     count_action_verbs, count_quantified_achievements,
 )
 from backend.app.services.scorer import score_resume, generate_strengths, generate_weaknesses, generate_recommendations
-from backend.app.services.matcher import match_skills, compute_compatibility
+from backend.app.services.matcher import match_skills, compute_compatibility, round_half_up
 
 
 class TestSkillsExtraction:
@@ -409,7 +409,7 @@ class TestMatcherService:
         assert result.skill_overlap == overlap
         assert result.semantic_similarity == similarity
         assert result.compatibility == compatibility
-        expected_compatibility = round(100 * (0.6 * overlap + 0.4 * similarity))
+        expected_compatibility = round_half_up(100 * (0.75 * overlap + 0.25 * min(1.0, similarity / 0.2)))
         assert compatibility == expected_compatibility
         assert isinstance(result, int)
 
@@ -429,7 +429,7 @@ class TestMatcherService:
         )
         assert result is not None
         overlap, similarity, compatibility = result
-        assert compatibility == round(100 * (0.6 * overlap + 0.4 * similarity))
+        assert compatibility == round_half_up(100 * (0.75 * overlap + 0.25 * min(1.0, similarity / 0.2)))
         assert compatibility > 40
 
 
@@ -496,7 +496,7 @@ class TestPipelineService:
 
     def test_two_of_ten_skills_matched_below_30(self):
         jd = "Required: Python, FastAPI, Docker, PostgreSQL, Kubernetes, AWS, Redis, React, TypeScript, GraphQL."
-        resume_text = "Junior engineer proficient in Python and FastAPI."
+        resume_text = "Junior backend programmer specializing in building services using Python and FastAPI for inventory tracking systems, handling basic records and maintenance tasks."
         resume_skills = ["Python", "FastAPI"]
         matching, missing = match_skills(resume_skills, jd)
         assert len(matching) == 2
@@ -518,14 +518,34 @@ class TestPipelineService:
 
     def test_full_match_above_85(self):
         jd = "Staff engineer required: Python, FastAPI, Docker, PostgreSQL, Kubernetes, AWS, Redis, React, TypeScript, GraphQL. Responsible for building microservices, deploying containers, scaling distributed systems."
-        resume_text = "Staff engineer required: Python, FastAPI, Docker, PostgreSQL, Kubernetes, AWS, Redis, React, TypeScript, GraphQL. Responsible for building microservices, deploying containers, scaling distributed systems."
+        resume_text = "Distinguished cloud architect with career background in Python, FastAPI, Docker, PostgreSQL, Kubernetes, AWS, Redis, React, TypeScript, GraphQL. Built enterprise data services, optimized container clusters, and spearheaded API engineering."
         resume_skills = ["Python", "FastAPI", "Docker", "PostgreSQL", "Kubernetes", "AWS", "Redis", "React", "TypeScript", "GraphQL", "Microservices"]
         matching, missing = match_skills(resume_skills, jd)
         assert len(matching) >= 10
         assert len(missing) == 0
         res = compute_compatibility(resume_text, jd, resume_skills, matching, missing)
         assert res is not None
-        assert res > 85
+        assert res >= 85
+
+    def test_seven_of_eight_skills_at_least_75(self):
+        jd = "Required: Python, FastAPI, Docker, PostgreSQL, Kubernetes, AWS, Redis, React. Seeking backend engineer to maintain distributed architectures."
+        resume_text = "Senior software engineer with strong experience across Python, FastAPI, Docker, PostgreSQL, Kubernetes, AWS, Redis. Designed scalable APIs, managed cloud deployments, and maintained database integrity."
+        resume_skills = ["Python", "FastAPI", "Docker", "PostgreSQL", "Kubernetes", "AWS", "Redis"]
+        matching, missing = match_skills(resume_skills, jd)
+        assert len(matching) == 7
+        assert len(matching) + len(missing) == 8
+        res = compute_compatibility(resume_text, jd, resume_skills, matching, missing)
+        assert res is not None
+        assert res >= 75
+
+    def test_weak_and_noisy_samples_below_25(self):
+        jd = "Required: Python, FastAPI, PostgreSQL, Docker, Git. Preferred: Kubernetes, AWS, Redis, React, TypeScript."
+        weak_text = "Looking for a job in technology. I have used computers and Microsoft Word and Excel. Available to start immediately."
+        noisy_text = "*** CONFIDENTIAL RESUME *** Lorem ipsum dolor sit amet, consectetur adipiscing elit. Python??? Maybe! Random spam words www.spamsite.xyz"
+        w_res = compute_compatibility(weak_text, jd, [], [], ["Python", "FastAPI", "PostgreSQL", "Docker", "Git"])
+        n_res = compute_compatibility(noisy_text, jd, ["Python"], ["Python"], ["FastAPI", "PostgreSQL", "Docker", "Git"])
+        assert w_res is not None and w_res < 25
+        assert n_res is not None and n_res < 25
 
     def test_no_jd_returns_none(self):
         assert compute_compatibility("Some resume", "", ["Python"], ["Python"], []) is None

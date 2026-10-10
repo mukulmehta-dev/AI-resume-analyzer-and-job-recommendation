@@ -22,7 +22,7 @@ RUN useradd -m -u 1000 appuser && \
 
 COPY --chown=appuser:appuser . /app/backend
 
-USER appuser
+USER 1000:1000
 
 EXPOSE 8000
 

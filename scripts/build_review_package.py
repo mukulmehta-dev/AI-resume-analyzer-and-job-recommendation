@@ -1,6 +1,7 @@
-import os
+﻿import os
 import sys
 import zipfile
+import shutil
 
 EXCLUDE_DIRS = {
     ".git",
@@ -59,7 +60,7 @@ if __name__ == "__main__":
     out_path = os.path.abspath("review-package/AI-Resume-Analyzer-Review.zip")
     create_zip(os.path.abspath("."), out_path)
     alt_out = r"C:\dev\AI-resume-analyzer\review-package\AI-Resume-Analyzer-Review.zip"
-    os.makedirs(os.path.dirname(alt_out), exist_ok=True)
-    import shutil
-    shutil.copyfile(out_path, alt_out)
-    print(f"Copied package to {alt_out}")
+    if os.path.abspath(out_path) != os.path.abspath(alt_out):
+        os.makedirs(os.path.dirname(alt_out), exist_ok=True)
+        shutil.copyfile(out_path, alt_out)
+        print(f"Copied package to {alt_out}")

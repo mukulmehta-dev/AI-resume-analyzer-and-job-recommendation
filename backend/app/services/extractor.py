@@ -1,7 +1,7 @@
 import io
 import os
 import zipfile
-import fitz
+import pymupdf
 import docx
 from fastapi import HTTPException, status
 from backend.app.core.config import settings
@@ -71,7 +71,7 @@ def validate_file_content(content: bytes, filename: str) -> str:
 
 def extract_text_from_pdf(content: bytes) -> str:
     try:
-        doc = fitz.open(stream=content, filetype="pdf")
+        doc = pymupdf.open(stream=content, filetype="pdf")
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,

@@ -1,8 +1,8 @@
-name: CI
+﻿name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, "**"]
   pull_request:
     branches: [main]
 
@@ -49,6 +49,10 @@ jobs:
       - name: Run Database Migrations
         env:
           DATABASE_URL: postgresql+psycopg2://postgres:postgres@localhost:5432/resume_analyzer
+          JWT_SECRET: ci_test_super_secret_jwt_key_resume_analyzer_2026
+          ENV: test
+          ADMIN_PASSWORD: adminpassword123
+          UPLOAD_DIR: data/uploads
           PYTHONPATH: .
         run: |
           alembic upgrade head
@@ -59,6 +63,10 @@ jobs:
         env:
           DATABASE_URL: postgresql+psycopg2://postgres:postgres@localhost:5432/resume_analyzer
           TEST_DATABASE_URL: postgresql+psycopg2://postgres:postgres@localhost:5432/resume_analyzer_test
+          JWT_SECRET: ci_test_super_secret_jwt_key_resume_analyzer_2026
+          ENV: test
+          ADMIN_PASSWORD: adminpassword123
+          UPLOAD_DIR: data/uploads
           PYTHONPATH: .
         run: |
           pytest -v -rs
@@ -81,7 +89,7 @@ jobs:
           npm run build
 
       - name: Set up Docker Buildx
-        uses: actions/docker-buildx-action@v3
+        uses: docker/setup-buildx-action@v3
 
       - name: Build Backend Docker Image
         uses: docker/build-push-action@v5
@@ -98,3 +106,46 @@ jobs:
           file: ./frontend/Dockerfile
           push: false
           tags: ai-resume-analyzer-frontend:latest
+
+  docker-e2e:
+    needs: test-and-build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install E2E Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests reportlab python-docx
+
+      - name: Start Docker Compose Stack
+        env:
+          POSTGRES_PASSWORD: test_postgres_password_123
+          ADMIN_PASSWORD: test_admin_password_123
+          JWT_SECRET: test_jwt_secret_for_docker_e2e_32chars
+          ENV: test
+        run: |
+          docker compose up -d --wait
+
+      - name: Run E2E Verification
+        env:
+          BASE_URL: http://localhost
+        run: |
+          python scripts/e2e.py
+
+      - name: Dump Docker Compose Logs on Failure
+        if: failure()
+        run: |
+          docker compose logs
+
+      - name: Tear Down Docker Compose
+        if: always()
+        run: |
+          docker compose down -v

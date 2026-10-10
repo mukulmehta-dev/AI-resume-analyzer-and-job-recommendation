@@ -1,5 +1,6 @@
-import json
+﻿import json
 import time
+import re
 import logging
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, ValidationError, field_validator
@@ -8,6 +9,8 @@ from google.genai import types as genai_types
 from backend.app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+_CACHED_AUTO_MODEL: Optional[str] = None
 
 
 class GeminiUnavailable(Exception):
@@ -32,8 +35,9 @@ class _GeminiOutput(BaseModel):
     weaknesses: List[str]
     recommendations: List[_RecommendationItem]
     summary_feedback: str
+    job_tailored_tips: List[str] = []
 
-    @field_validator("strengths", "weaknesses", mode="before")
+    @field_validator("strengths", "weaknesses", "job_tailored_tips", mode="before")
     @classmethod
     def _cap_list(cls, v: Any) -> Any:
         if isinstance(v, list):
@@ -92,7 +96,8 @@ def _build_user_prompt(
         '{"strengths":["string",...],'
         '"weaknesses":["string",...],'
         '"recommendations":[{"title":"string","detail":"string","priority":"high|medium|low"},...],'
-        '"summary_feedback":"string"}'
+        '"summary_feedback":"string",'
+        '"job_tailored_tips":["string",...]}'
     )
 
     return (
@@ -107,6 +112,7 @@ def _build_user_prompt(
         f"- weaknesses: 3-5 improvement areas\n"
         f"- recommendations: 4-6 actionable items ordered by priority\n"
         f"- summary_feedback: 2-3 sentence assessment\n"
+        f"- job_tailored_tips: 2-4 concrete tips tailored to the job description\n"
         f"- Do NOT include markdown, code fences, or extra keys"
     )
 
@@ -122,6 +128,67 @@ def _parse_response(raw: str) -> _GeminiOutput:
         text = text[start : end + 1]
     data = json.loads(text)
     return _GeminiOutput.model_validate(data)
+
+
+def _get_candidate_text_models(client: genai.Client) -> List[str]:
+    all_models = list(client.models.list())
+    gen_models = []
+    for m in all_models:
+        actions = getattr(m, "supported_actions", []) or []
+        if "generateContent" in actions:
+            clean_name = m.name
+            if clean_name.startswith("models/"):
+                clean_name = clean_name[len("models/"):]
+            gen_models.append(clean_name)
+    excluded = [
+        "image", "tts", "transcribe", "lyria", "robotics",
+        "computer-use", "antigravity", "deep-research", "nano-banana", "omni"
+    ]
+    included = ["flash", "flash-lite", "pro", "gemma"]
+    text_models = []
+    for m in gen_models:
+        lower = m.lower()
+        if any(ex in lower for ex in excluded):
+            continue
+        if any(inc in lower for inc in included):
+            text_models.append(m)
+    return text_models
+
+
+def resolve_auto_model(client: genai.Client) -> str:
+    global _CACHED_AUTO_MODEL
+    if _CACHED_AUTO_MODEL is not None:
+        return _CACHED_AUTO_MODEL
+
+    candidates = _get_candidate_text_models(client)
+    for model_name in candidates:
+        try:
+            resp = client.models.generate_content(
+                model=model_name,
+                contents="Reply with the single word OK",
+            )
+            if resp and getattr(resp, "text", None):
+                _CACHED_AUTO_MODEL = model_name
+                logger.info(f"Auto-selected Gemini model: {_CACHED_AUTO_MODEL}")
+                return _CACHED_AUTO_MODEL
+        except Exception:
+            continue
+
+    raise GeminiUnavailable("Auto model selection failed: no working text models found")
+
+
+def get_models_to_try(client: genai.Client) -> List[str]:
+    configured = settings.GEMINI_MODEL.strip()
+    if configured.lower() == "auto":
+        auto_model = resolve_auto_model(client)
+        models = [auto_model]
+        if settings.GEMINI_MODEL_FALLBACKS:
+            for item in settings.GEMINI_MODEL_FALLBACKS.split(","):
+                fb = item.strip()
+                if fb and fb not in models:
+                    models.append(fb)
+        return models
+    return settings.candidate_gemini_models
 
 
 def enhance_analysis(
@@ -143,7 +210,7 @@ def enhance_analysis(
         resume_score, sections,
     )
 
-    models_to_try = settings.candidate_gemini_models
+    models_to_try = get_models_to_try(client)
     last_exc: Exception = GeminiUnavailable("Unknown error")
 
     for model_name in models_to_try:
@@ -167,11 +234,15 @@ def enhance_analysis(
                 )
                 parsed = _parse_response(response.text)
                 logger.info(f"Analysis served by Gemini model: {model_name}")
+                tips = parsed.job_tailored_tips
+                if not tips and missing_skills:
+                    tips = [f"Gain verified experience with {skill} to better align with the position" for skill in missing_skills[:3]]
                 return {
                     "strengths": parsed.strengths,
                     "weaknesses": parsed.weaknesses,
                     "recommendations": [r.model_dump() for r in parsed.recommendations],
                     "summary_feedback": parsed.summary_feedback,
+                    "job_tailored_tips": tips,
                     "model_used": model_name,
                 }
             except (json.JSONDecodeError, ValidationError, KeyError) as exc:
@@ -179,8 +250,10 @@ def enhance_analysis(
             except Exception as exc:
                 last_exc = exc
                 err_str = str(exc)
+                code_match = re.search(r"\b(4\d\d)\b", err_str)
+                err_code = code_match.group(1) if code_match else exc.__class__.__name__
                 if any(code in err_str for code in ("404", "403", "429", "NOT_FOUND", "PERMISSION_DENIED", "RESOURCE_EXHAUSTED")):
-                    logger.warning(f"Gemini model {model_name} failed with {exc.__class__.__name__}, falling back to next model.")
+                    logger.warning(f"Gemini model {model_name} failed with status {err_code} ({exc.__class__.__name__}): {exc}, falling back to next model.")
                     break
                 if attempt == 0:
                     time.sleep(1)

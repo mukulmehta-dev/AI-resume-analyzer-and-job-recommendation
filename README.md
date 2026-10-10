@@ -1,4 +1,4 @@
-# AI Resume Analyzer and Job Recommendation System
+﻿# AI Resume Analyzer and Job Recommendation System
 
 Full-stack enterprise application for ATS-aligned resume analysis, deterministic scoring, semantic skill matching, and AI advisory feedback.
 
@@ -22,7 +22,7 @@ Full-stack enterprise application for ATS-aligned resume analysis, deterministic
 | `JWT_SECRET` | Yes | None | Cryptographic secret for signing auth session tokens |
 | `ENV` | No | `development` | Environment mode (`development` or `production`) |
 | `ADMIN_EMAIL` | No | `admin@example.com` | Initial administrator email seeded on first startup |
-| `ADMIN_PASSWORD` | No | `AdminSecurePassword2026!` | Initial administrator password seeded on first startup |
+| `ADMIN_PASSWORD` | No | `change_this_secure_admin_password` | Initial administrator password seeded on first startup |
 | `TRUSTED_PROXY` | No | `false` | When `true`, honors `X-Forwarded-For` header behind reverse proxy |
 | `UPLOAD_DIR` | No | `data/uploads` | Local disk directory for storing uploaded PDF and DOCX files |
 | `MAX_UPLOAD_MB` | No | `5` | Maximum upload size threshold in megabytes |

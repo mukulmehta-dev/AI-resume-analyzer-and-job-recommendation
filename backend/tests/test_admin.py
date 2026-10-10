@@ -1,4 +1,4 @@
-import uuid
+﻿import uuid
 import pytest
 from backend.app.models.user import User, UserRole
 from backend.app.models.resume import Resume
@@ -153,3 +153,31 @@ def test_admin_users_pagination_and_search(client, db_session):
     data_search = res_search.json()
     assert data_search["total"] == 1
     assert data_search["items"][0]["email"] == "alice@targetdomain.com"
+
+
+def test_production_refuses_unset_admin_password():
+    from pydantic import ValidationError
+    from backend.app.core.config import Settings
+    with pytest.raises(ValidationError):
+        Settings(ENV="production", JWT_SECRET="x" * 32, ADMIN_PASSWORD=None)
+
+
+def test_production_refuses_short_admin_password():
+    from pydantic import ValidationError
+    from backend.app.core.config import Settings
+    with pytest.raises(ValidationError):
+        Settings(ENV="production", JWT_SECRET="x" * 32, ADMIN_PASSWORD="short_pw")
+
+
+def test_production_refuses_placeholder_admin_password():
+    from pydantic import ValidationError
+    from backend.app.core.config import Settings
+    with pytest.raises(ValidationError):
+        Settings(ENV="production", JWT_SECRET="x" * 32, ADMIN_PASSWORD="changethisinproduction")
+
+
+def test_production_accepts_strong_admin_password():
+    from backend.app.core.config import Settings
+    s = Settings(ENV="production", JWT_SECRET="x" * 32, ADMIN_PASSWORD="VeryStrongUniqueProdPassword2026#")
+    assert s.ADMIN_PASSWORD == "VeryStrongUniqueProdPassword2026#"
+

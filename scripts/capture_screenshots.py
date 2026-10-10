@@ -1,8 +1,15 @@
-import os
+﻿import os
 import sys
 import time
 import shutil
 from playwright.sync_api import sync_playwright
+
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
+
+from backend.app.db.session import SessionLocal
+from backend.app.models.analysis import Analysis
 
 SCREENSHOT_DIR = os.path.abspath("review-package/screenshots")
 ALT_SCREENSHOT_DIR = r"C:\dev\AI-resume-analyzer\review-package\screenshots"
@@ -15,11 +22,19 @@ def save_and_copy(page, filename: str):
     target_path = os.path.join(SCREENSHOT_DIR, filename)
     page.screenshot(path=target_path, full_page=True)
     alt_path = os.path.join(ALT_SCREENSHOT_DIR, filename)
-    shutil.copyfile(target_path, alt_path)
+    if os.path.abspath(target_path) != os.path.abspath(alt_path):
+        shutil.copyfile(target_path, alt_path)
     print(f"[PASS] Saved screenshot {filename} ({os.path.getsize(target_path)} bytes)")
 
 
 def main():
+    db = SessionLocal()
+    analysis_no_jd = db.query(Analysis).filter(Analysis.job_description.is_(None)).first()
+    analysis_with_jd = db.query(Analysis).filter(Analysis.job_description.isnot(None)).first()
+    no_jd_id = str(analysis_no_jd.id) if analysis_no_jd else ""
+    with_jd_id = str(analysis_with_jd.id) if analysis_with_jd else ""
+    db.close()
+
     with sync_playwright() as p:
         browser = p.chromium.launch(channel="msedge", headless=True)
         context = browser.new_context(viewport={"width": 1440, "height": 900})
@@ -44,15 +59,17 @@ def main():
         time.sleep(2)
         save_and_copy(page, "upload.png")
 
-        print("Capturing results without JD...")
-        page.goto("http://localhost:5173/analysis/38c21713-2784-4e7b-823a-d0e53fb4a872")
-        time.sleep(2)
-        save_and_copy(page, "results_without_jd.png")
+        if no_jd_id:
+            print(f"Capturing results without JD ({no_jd_id})...")
+            page.goto(f"http://localhost:5173/analysis/{no_jd_id}")
+            time.sleep(2)
+            save_and_copy(page, "results_without_jd.png")
 
-        print("Capturing results with JD...")
-        page.goto("http://localhost:5173/analysis/a682f59a-9268-4349-915e-a8e076db3bb8")
-        time.sleep(2)
-        save_and_copy(page, "results_with_jd.png")
+        if with_jd_id:
+            print(f"Capturing results with JD ({with_jd_id})...")
+            page.goto(f"http://localhost:5173/analysis/{with_jd_id}")
+            time.sleep(2)
+            save_and_copy(page, "results_with_jd.png")
 
         print("Capturing history page...")
         page.goto("http://localhost:5173/history")
