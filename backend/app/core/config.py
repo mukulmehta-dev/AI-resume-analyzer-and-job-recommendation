@@ -1,6 +1,6 @@
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import Optional, List
+from typing import Optional, List, Any
 
 
 class Settings(BaseSettings):
@@ -20,6 +20,15 @@ class Settings(BaseSettings):
     CORS_ORIGIN: str = "http://localhost:5173"
     USE_EMBEDDINGS: bool = False
     COOKIE_SECURE: Optional[bool] = None
+
+    @field_validator("COOKIE_SECURE", mode="before")
+    @classmethod
+    def _validate_cookie_secure(cls, v: Optional[Any]) -> Optional[bool]:
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return None
+        if isinstance(v, str):
+            return v.strip().lower() in ("true", "1", "yes")
+        return bool(v)
 
     @field_validator("GEMINI_API_KEY", mode="before")
     @classmethod

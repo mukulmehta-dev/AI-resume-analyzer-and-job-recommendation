@@ -34,7 +34,7 @@ services:
       GEMINI_MODEL_FALLBACKS: ${GEMINI_MODEL_FALLBACKS:-gemini-3.5-flash,gemini-3.1-flash-lite}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
       USE_EMBEDDINGS: "false"
-      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      COOKIE_SECURE: ${COOKIE_SECURE:-}
     volumes:
       - uploads_data:/app/data/uploads
     depends_on:
