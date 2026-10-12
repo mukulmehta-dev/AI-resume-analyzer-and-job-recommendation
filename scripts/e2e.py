@@ -165,6 +165,7 @@ def main():
     expected_sum_2 = round(sum(sec2[s]["score"] * sec2[s]["weight"] for s in ["skills", "experience", "education", "projects", "certifications", "structure"]))
     assert analysis_2["resume_score"] == expected_sum_2, f"Expected {expected_sum_2}, got {analysis_2['resume_score']}"
     assert analysis_2["compatibility_score"] is not None, "Expected non-None compatibility score with JD"
+    assert analysis_2["compatibility_score"] >= 75, f"Expected compatibility >= 75 for 7-of-8 skills, got {analysis_2['compatibility_score']}"
     assert "Python" in analysis_2["matching_skills"]
     assert "Docker" in analysis_2["matching_skills"]
     assert "PostgreSQL" in analysis_2["matching_skills"]

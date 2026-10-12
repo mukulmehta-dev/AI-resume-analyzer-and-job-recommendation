@@ -277,7 +277,8 @@ class TestScorerService:
     def test_recommendations_have_priority_field(self):
         sections = self._base_sections()
         recs = generate_recommendations(sections, [], ["Docker", "K8s"], 200, {}, 30)
-        assert all("priority" in r for r in recs)
+        assert all("title" in r and "detail" in r and "priority" in r for r in recs)
+        assert all(isinstance(r["title"], str) and isinstance(r["detail"], str) for r in recs)
         assert all(r["priority"] in ("high", "medium", "low") for r in recs)
 
     def test_action_verb_bonus_applied(self):

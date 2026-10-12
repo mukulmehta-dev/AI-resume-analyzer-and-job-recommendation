@@ -1,4 +1,4 @@
-﻿name: CI
+name: CI
 
 on:
   push:
@@ -120,6 +120,11 @@ jobs:
   docker-e2e:
     needs: test-and-build
     runs-on: ubuntu-latest
+    env:
+      POSTGRES_PASSWORD: test_postgres_password_123
+      ADMIN_PASSWORD: test_admin_password_123
+      JWT_SECRET: test_jwt_secret_for_docker_e2e_32chars
+      ENV: test
 
     steps:
       - name: Checkout Code
@@ -136,11 +141,6 @@ jobs:
           pip install requests reportlab python-docx
 
       - name: Start Docker Compose Stack
-        env:
-          POSTGRES_PASSWORD: test_postgres_password_123
-          ADMIN_PASSWORD: test_admin_password_123
-          JWT_SECRET: test_jwt_secret_for_docker_e2e_32chars
-          ENV: test
         run: |
           docker compose up -d --build --wait
 
@@ -158,4 +158,4 @@ jobs:
       - name: Tear Down Docker Compose
         if: always()
         run: |
-          docker compose down -v
+          docker compose down -v || true

@@ -217,6 +217,10 @@ class TestGeminiMocking:
             resp = _wait_done(client, analysis_id)
         assert resp.json()["ai_unavailable"] is False
         assert resp.json()["status"] == "done"
+        recs = resp.json()["recommendations"]
+        assert len(recs) > 0
+        assert all("title" in r and "detail" in r and "priority" in r for r in recs)
+        assert all(r["priority"] in ("high", "medium", "low") for r in recs)
 
     def test_gemini_timeout_sets_ai_unavailable(self, client):
         _register_and_login(client, "ai_fail@example.com", "Password1!")

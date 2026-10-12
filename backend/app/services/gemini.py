@@ -3,7 +3,7 @@ import time
 import re
 import logging
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, ValidationError, field_validator
+from pydantic import BaseModel, ValidationError, field_validator, model_validator
 from google import genai
 from google.genai import types as genai_types
 from backend.app.core.config import settings
@@ -18,9 +18,21 @@ class GeminiUnavailable(Exception):
 
 
 class _RecommendationItem(BaseModel):
-    title: str
-    detail: str
-    priority: str
+    title: str = "Recommendation"
+    detail: str = ""
+    priority: str = "medium"
+
+    @model_validator(mode="before")
+    @classmethod
+    def _map_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            d = dict(data)
+            if "detail" not in d and "description" in d:
+                d["detail"] = d["description"]
+            if not d.get("detail"):
+                d["detail"] = d.get("title", "")
+            return d
+        return data
 
     @field_validator("priority")
     @classmethod

@@ -2,6 +2,22 @@
 
 Full-stack enterprise application for ATS-aligned resume analysis, deterministic scoring, semantic skill matching, and AI advisory feedback.
 
+Requirement IDs follow the project SRS (FR-1 to FR-39, NFR-1 to NFR-16).
+
+---
+
+## ATS Compatibility & Scoring Logic
+
+When a job description is provided, compatibility between the candidate and position is evaluated using deterministic heuristics combining weighted keyword overlap and TF-IDF cosine similarity:
+
+```
+compatibility = round_half_up(100*(0.75*overlap + 0.25*min(1, tfidf_cosine/0.2)))
+```
+
+- **`overlap`**: Weighted skill overlap ratio where required skills receive double weight compared to preferred skills: `(2 * required_overlap + 1 * preferred_overlap) / 3`.
+- **`tfidf_cosine`**: Raw TF-IDF cosine similarity between resume text and job description.
+- Clamped between `0` and `100`. Resumes with no job description return `None` for compatibility.
+
 ---
 
 ## 1. Prerequisites

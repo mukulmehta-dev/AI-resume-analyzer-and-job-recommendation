@@ -1,8 +1,7 @@
-﻿$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Stop"
 
 $port = 5432
 $hostName = "localhost"
-$env:PGPASSWORD = "postgres"
 
 Write-Output "Checking reachability of PostgreSQL at ${hostName}:${port}..."
 $tcpCheck = Test-NetConnection -ComputerName $hostName -Port $port -WarningAction SilentlyContinue
@@ -56,7 +55,19 @@ $testResultsFile = "backend\test-results.txt"
 $dbHeaderCmd = "$pythonCmd -c ""from backend.app.db.session import engine; import sqlalchemy; conn = engine.connect(); ver = conn.execute(sqlalchemy.text('SELECT version()')).scalar(); conn.close(); print(f'Engine Dialect: {engine.dialect.name}\nDatabase Version: {ver}\n' + '='*80)"""
 $headerText = cmd /c $dbHeaderCmd
 Set-Content -Path $testResultsFile -Value $headerText
-cmd /c "$pytestCmd -v -rs >> $testResultsFile 2>&1"
-Get-Content -Path $testResultsFile
+
+& $pytestCmd -v -rs 2>&1 | Tee-Object -FilePath $testResultsFile -Append
+
+$content = Get-Content -Path $testResultsFile
+foreach ($line in $content) {
+    if ($line -match '^\s*backend/tests/.*\.\.\.') {
+        Write-Error "test-results.txt contains placeholder line: $line"
+        exit 1
+    }
+    if ($line -match '\[.*test cases.*\]') {
+        Write-Error "test-results.txt contains placeholder line: $line"
+        exit 1
+    }
+}
 
 Write-Output "Pytest completed. Results saved to $testResultsFile."
