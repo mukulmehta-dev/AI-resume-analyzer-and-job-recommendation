@@ -250,26 +250,26 @@ export default function HomePage() {
               <Link
                 key={a.id}
                 to={`/analysis/${a.id}`}
-                className="flex items-center justify-between px-4 py-3 rounded-xl bg-slate-800/30 border border-slate-700/50 hover:bg-slate-800/60 transition-all duration-150 group"
+                className="flex items-center justify-between px-4 py-3 rounded-xl bg-white gradient-border hover:shadow-md transition-all duration-150 group"
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className={`w-2 h-2 rounded-full shrink-0 ${
-                    a.status === "done" ? "bg-emerald-400" :
-                    a.status === "failed" ? "bg-rose-400" : "bg-amber-400 animate-pulse"
+                  <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                    a.status === "done" ? "bg-emerald-500" :
+                    a.status === "failed" ? "bg-rose-500" : "bg-amber-500 animate-pulse"
                   }`} />
-                  <span className="text-sm text-slate-300 group-hover:text-white transition-colors truncate">
+                  <span className="text-sm text-slate-900 font-medium group-hover:text-indigo-600 transition-colors truncate">
                     {a.job_description ? a.job_description.slice(0, 60) + (a.job_description.length > 60 ? "…" : "") : "General Analysis"}
                   </span>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
                   {a.status === "done" && (
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                      a.resume_score >= 70 ? "text-emerald-400 bg-emerald-500/10" :
-                      a.resume_score >= 40 ? "text-amber-400 bg-amber-500/10" :
-                      "text-rose-400 bg-rose-500/10"
+                    <span className={`score-badge ${
+                      a.resume_score >= 70 ? "score-badge-green" :
+                      a.resume_score >= 40 ? "score-badge-yellow" :
+                      "score-badge-red"
                     }`}>{a.resume_score}</span>
                   )}
-                  <span className="text-xs text-slate-500">{new Date(a.created_at).toLocaleDateString()}</span>
+                  <span className="text-xs text-slate-600 font-medium">{new Date(a.created_at).toLocaleDateString()}</span>
                 </div>
               </Link>
             ))}

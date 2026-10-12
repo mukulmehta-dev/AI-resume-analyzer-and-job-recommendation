@@ -31,12 +31,12 @@ def _mark_stale_pending_failed(db) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
-    Base.metadata.create_all(bind=engine)
+    if settings.ENV != "production":
+        Base.metadata.create_all(bind=engine)
     with SessionLocal() as db:
         seed_admin(db)
         _mark_stale_pending_failed(db)
     yield
-
 
 
 app = FastAPI(

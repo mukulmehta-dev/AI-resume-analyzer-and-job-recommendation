@@ -1,4 +1,4 @@
-﻿services:
+services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -24,15 +24,17 @@
       DATABASE_URL: postgresql+psycopg2://postgres:${POSTGRES_PASSWORD}@db:5432/resume_analyzer
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required and must not be empty}
       ENV: ${ENV:-production}
-      ADMIN_EMAIL: admin@example.com
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD is required and must not be empty}
       TRUSTED_PROXY: "true"
       UPLOAD_DIR: /app/data/uploads
       MAX_UPLOAD_MB: 5
-      GEMINI_API_KEY: ""
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.8-flash}
-      CORS_ORIGIN: http://localhost
+      GEMINI_MODEL_FALLBACKS: ${GEMINI_MODEL_FALLBACKS:-gemini-3.5-flash,gemini-3.1-flash-lite}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
       USE_EMBEDDINGS: "false"
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
     volumes:
       - uploads_data:/app/data/uploads
     depends_on:

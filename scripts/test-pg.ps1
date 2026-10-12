@@ -25,16 +25,14 @@ if (Test-Path $psqlPath) {
 $env:DATABASE_URL = "postgresql+psycopg2://postgres:postgres@localhost:5432/resume_analyzer"
 $env:TEST_DATABASE_URL = "postgresql+psycopg2://postgres:postgres@localhost:5432/resume_analyzer_test"
 $env:PYTHONPATH = "."
+$env:PYTHONIOENCODING = "utf-8"
 
-$alembicCmd = "backend\.venv\Scripts\alembic.exe"
+$alembicCmd = "backend\bin\alembic.exe"
+if (-not (Test-Path $alembicCmd)) { $alembicCmd = "backend\.venv\Scripts\alembic.exe" }
+if (-not (Test-Path $alembicCmd)) { $alembicCmd = "alembic" }
+
 $pytestCmd = "backend\.venv\Scripts\pytest.exe"
-
-if (-not (Test-Path $alembicCmd)) {
-    $alembicCmd = "alembic"
-}
-if (-not (Test-Path $pytestCmd)) {
-    $pytestCmd = "pytest"
-}
+if (-not (Test-Path $pytestCmd)) { $pytestCmd = "pytest" }
 
 Write-Output "Running alembic migrations: upgrade head..."
 & $alembicCmd upgrade head
@@ -46,28 +44,17 @@ Write-Output "Running alembic migrations: upgrade head..."
 & $alembicCmd upgrade head
 
 $pythonCmd = "backend\.venv\Scripts\python.exe"
-if (-not (Test-Path $pythonCmd)) {
-    $pythonCmd = "python"
-}
+if (-not (Test-Path $pythonCmd)) { $pythonCmd = "python" }
 
 Write-Output "Running pytest suite..."
 $testResultsFile = "backend\test-results.txt"
 $dbHeaderCmd = "$pythonCmd -c ""from backend.app.db.session import engine; import sqlalchemy; conn = engine.connect(); ver = conn.execute(sqlalchemy.text('SELECT version()')).scalar(); conn.close(); print(f'Engine Dialect: {engine.dialect.name}\nDatabase Version: {ver}\n' + '='*80)"""
 $headerText = cmd /c $dbHeaderCmd
-Set-Content -Path $testResultsFile -Value $headerText
+$headerText | Out-File -FilePath $testResultsFile -Encoding utf8
 
-& $pytestCmd -v -rs 2>&1 | Tee-Object -FilePath $testResultsFile -Append
+& $pytestCmd -v -rs 2>&1 | Tee-Object -Variable pytestOutput
+$pytestOutput | Out-File -FilePath $testResultsFile -Encoding utf8 -Append
 
-$content = Get-Content -Path $testResultsFile
-foreach ($line in $content) {
-    if ($line -match '^\s*backend/tests/.*\.\.\.') {
-        Write-Error "test-results.txt contains placeholder line: $line"
-        exit 1
-    }
-    if ($line -match '\[.*test cases.*\]') {
-        Write-Error "test-results.txt contains placeholder line: $line"
-        exit 1
-    }
-}
+& $pythonCmd scripts/verify_results.py
 
 Write-Output "Pytest completed. Results saved to $testResultsFile."

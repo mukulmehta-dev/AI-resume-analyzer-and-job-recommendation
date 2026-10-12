@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     GEMINI_MODEL_FALLBACKS: str = "gemini-3.5-flash,gemini-3.1-flash-lite"
     CORS_ORIGIN: str = "http://localhost:5173"
     USE_EMBEDDINGS: bool = False
+    COOKIE_SECURE: Optional[bool] = None
 
     @field_validator("GEMINI_API_KEY", mode="before")
     @classmethod
@@ -28,9 +29,22 @@ class Settings(BaseSettings):
         return str(v).strip()
 
     @model_validator(mode="after")
-    def _validate_production_admin_password(self) -> "Settings":
+    def _validate_settings(self) -> "Settings":
+        if self.COOKIE_SECURE is None:
+            self.COOKIE_SECURE = (self.ENV == "production")
+
         if self.ENV == "production":
-            placeholders = {
+            if not self.DATABASE_URL or "sqlite" in self.DATABASE_URL.lower():
+                raise ValueError("DATABASE_URL is required and cannot be SQLite when ENV=production.")
+
+            jwt_placeholders = {
+                "replace_with_a_secure_random_jwt_secret_key_in_production",
+                "secret", "jwt_secret", "changeme", "placeholder", "your_jwt_secret_here"
+            }
+            if not self.JWT_SECRET or len(self.JWT_SECRET.strip()) < 32 or self.JWT_SECRET.strip().lower() in jwt_placeholders:
+                raise ValueError("JWT_SECRET must be at least 32 characters and not a placeholder when ENV=production.")
+
+            admin_placeholders = {
                 "admin", "password", "changeme", "placeholder", "changethisinproduction",
                 "adminsecurepassword2026!", "your_admin_password_here"
             }
@@ -39,7 +53,7 @@ class Settings(BaseSettings):
             pw = self.ADMIN_PASSWORD.strip()
             if len(pw) < 12:
                 raise ValueError("ADMIN_PASSWORD must be at least 12 characters when ENV=production.")
-            if pw.lower() in placeholders:
+            if pw.lower() in admin_placeholders:
                 raise ValueError("ADMIN_PASSWORD cannot be a known default or placeholder when ENV=production.")
         return self
 

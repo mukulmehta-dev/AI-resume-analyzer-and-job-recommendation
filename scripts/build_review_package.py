@@ -1,4 +1,4 @@
-﻿import os
+import os
 import sys
 import zipfile
 import shutil
@@ -6,18 +6,30 @@ import shutil
 EXCLUDE_DIRS = {
     ".git",
     ".venv",
+    "backend/.venv",
     "node_modules",
     "uploads",
+    "data/uploads",
     "__pycache__",
     ".pytest_cache",
     ".vite",
     ".react-router",
+    ".agents",
+    "frontend/build",
+    "build",
+    "%SystemDrive%",
+}
+
+EXCLUDE_EXTS = {
+    ".exe",
+    ".db",
+    ".pyc",
+    ".pyo",
+    ".zip",
 }
 
 EXCLUDE_FILES = {
     ".env",
-    "resume_analyzer.db",
-    "test_runner.db",
 }
 
 
@@ -27,11 +39,21 @@ def should_exclude(rel_path: str) -> bool:
     for part in parts:
         if part in EXCLUDE_DIRS:
             return True
-        if part.endswith(".pyc") or part.endswith(".pyo"):
+        if "%SystemDrive%" in part:
             return True
+        if part == ".agents" or part.startswith(".agents"):
+            return True
+        if part == "build" and "frontend" in parts:
+            return True
+
     base = os.path.basename(normalized)
-    if base in EXCLUDE_FILES or base.endswith(".zip"):
+    if base in EXCLUDE_FILES:
         return True
+    name_lower = base.lower()
+    for ext in EXCLUDE_EXTS:
+        if name_lower.endswith(ext):
+            return True
+
     return False
 
 
@@ -43,7 +65,10 @@ def create_zip(source_dir: str, output_zip_path: str):
     total_files = 0
     with zipfile.ZipFile(output_zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
         for root, dirs, files in os.walk(source_dir):
-            dirs[:] = [d for d in dirs if d not in EXCLUDE_DIRS]
+            dirs[:] = [
+                d for d in dirs
+                if d not in EXCLUDE_DIRS and "%SystemDrive%" not in d and d != ".agents"
+            ]
             for file in files:
                 full_path = os.path.join(root, file)
                 rel_path = os.path.relpath(full_path, source_dir)
@@ -53,6 +78,7 @@ def create_zip(source_dir: str, output_zip_path: str):
                 total_files += 1
 
     zip_size = os.path.getsize(output_zip_path)
+    print(f"Total files packaged: {total_files}")
     print(f"Created {output_zip_path} with {total_files} files ({zip_size} bytes)")
 
 

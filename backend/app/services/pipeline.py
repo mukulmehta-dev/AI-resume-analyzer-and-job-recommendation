@@ -9,13 +9,14 @@ from backend.app.services.scorer import (
     generate_weaknesses,
     generate_recommendations,
 )
-from backend.app.services.matcher import match_skills, compute_compatibility
+from backend.app.services.matcher import match_skills, compute_compatibility, extract_job_skills
 
 
 class RecommendationItem(BaseModel):
     title: str
     detail: str
     priority: str = Field(pattern=r"^(high|medium|low)$")
+    source: str = "rules"
 
 
 class SkillInfo(BaseModel):
@@ -30,6 +31,7 @@ class PipelineResult(BaseModel):
     detected_skills_with_category: List[SkillInfo]
     matching_skills: List[str]
     missing_skills: List[str]
+    job_skills: List[Dict[str, Any]] = []
     sections: Dict[str, Any]
     word_count: int
     estimated_years_of_experience: int
@@ -87,11 +89,13 @@ def run_rule_based(
 
     matching_skills: List[str] = []
     missing_skills: List[str] = []
+    job_skills: List[Dict[str, Any]] = []
     if safe_jd:
         try:
             matching_skills, missing_skills = match_skills(detected_skills, safe_jd)
+            job_skills = extract_job_skills(safe_jd)
         except Exception:
-            matching_skills, missing_skills = [], []
+            matching_skills, missing_skills, job_skills = [], [], []
 
     try:
         subscores = compute_section_subscores(
@@ -178,6 +182,7 @@ def run_rule_based(
             title=r.get("title", ""),
             detail=r.get("detail", ""),
             priority=r.get("priority", "medium") if r.get("priority") in ("high", "medium", "low") else "medium",
+            source="rules",
         )
         for r in raw_recs
     ]
@@ -194,6 +199,7 @@ def run_rule_based(
         detected_skills_with_category=detected_with_category,
         matching_skills=matching_skills,
         missing_skills=missing_skills,
+        job_skills=job_skills,
         sections=subscores,
         word_count=word_count,
         estimated_years_of_experience=years_exp,

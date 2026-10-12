@@ -1,5 +1,5 @@
 import re
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict, Any
 from decimal import Decimal, ROUND_HALF_UP
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
@@ -39,7 +39,6 @@ class CompatibilityResult(int):
         return iter((self.skill_overlap, self.semantic_similarity, self.compatibility))
 
 
-
 def _classify_jd_sentences(jd_text: str) -> Tuple[str, str]:
     sentences = _SENTENCE_SPLIT.split(jd_text)
     required_parts = []
@@ -67,6 +66,24 @@ def _tfidf_similarity(text_a: str, text_b: str) -> float:
         return round(min(max(score, 0.0), 1.0), 4)
     except Exception:
         return 0.0
+
+
+def extract_job_skills(jd_text: str) -> List[Dict[str, str]]:
+    if not jd_text or not jd_text.strip():
+        return []
+    required_text, preferred_text = _classify_jd_sentences(jd_text)
+    required_skills = sorted(set(extract_skills(required_text)))
+    preferred_skills = sorted(set(extract_skills(preferred_text)))
+    results = []
+    seen = set()
+    for s in required_skills:
+        results.append({"name": s, "type": "required"})
+        seen.add(s)
+    for s in preferred_skills:
+        if s not in seen:
+            results.append({"name": s, "type": "preferred"})
+            seen.add(s)
+    return results
 
 
 def match_skills(

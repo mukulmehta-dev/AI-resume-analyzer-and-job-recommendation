@@ -1,24 +1,18 @@
-import os
-import sys
-
-_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-if _ROOT not in sys.path:
-    sys.path.insert(0, _ROOT)
-
 import io
-from datetime import datetime, timezone
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from docx import Document
+from backend.app.db.session import SessionLocal
 from backend.app.core.config import settings
 from backend.app.core.security import hash_password
-from backend.app.db.session import SessionLocal
 from backend.app.models.user import User, UserRole
 from backend.app.models.resume import Resume
 from backend.app.models.analysis import Analysis, AnalysisStatus
 from backend.app.services.pipeline import run_rule_based
 from backend.app.db.seed import seed_admin
 from backend.app.services.storage import storage_service
+from backend.app.services.gemini import is_available, enhance_analysis
+from backend.app.routers.analyses import _run_pipeline
 
 
 def _create_sample_pdf(text: str) -> bytes:
@@ -42,6 +36,25 @@ def _create_sample_docx(text: str) -> bytes:
     buffer = io.BytesIO()
     doc.save(buffer)
     return buffer.getvalue()
+
+
+def _is_gemini_operational() -> bool:
+    if not is_available():
+        return False
+    try:
+        test_facts = {"word_count": 100, "estimated_years_of_experience": 2}
+        test_enh = enhance_analysis(
+            resume_facts=test_facts,
+            jd_text=None,
+            detected_skills=["Python"],
+            matching_skills=[],
+            missing_skills=[],
+            resume_score=75,
+            sections={"skills": True},
+        )
+        return bool(test_enh and test_enh.get("model_used"))
+    except Exception:
+        return False
 
 
 def seed_demo_data():
@@ -101,13 +114,17 @@ def seed_demo_data():
             detected_skills=res0.detected_skills,
             matching_skills=[],
             missing_skills=[],
+            job_skills=[],
             sections=res0.sections,
             strengths=res0.strengths,
             weaknesses=res0.weaknesses,
             recommendations=[r.model_dump() for r in res0.recommendations],
-            summary_feedback="Strong profile with verified engineering and architectural foundation.",
+            summary_feedback="",
+            ai_model=None,
+            job_tailored_tips=[],
+            ai_insights=None,
             status=AnalysisStatus.done,
-            ai_unavailable=False,
+            ai_unavailable=True,
         )
         db.add(a0)
 
@@ -122,13 +139,17 @@ def seed_demo_data():
             detected_skills=res1.detected_skills,
             matching_skills=res1.matching_skills,
             missing_skills=res1.missing_skills,
+            job_skills=res1.job_skills,
             sections=res1.sections,
             strengths=res1.strengths,
             weaknesses=res1.weaknesses,
             recommendations=[r.model_dump() for r in res1.recommendations],
-            summary_feedback="Strong match with comprehensive cloud and systems architecture proficiency.",
+            summary_feedback="",
+            ai_model=None,
+            job_tailored_tips=[],
+            ai_insights=None,
             status=AnalysisStatus.done,
-            ai_unavailable=False,
+            ai_unavailable=True,
         )
         db.add(a1)
 
@@ -167,13 +188,17 @@ def seed_demo_data():
             detected_skills=res2.detected_skills,
             matching_skills=res2.matching_skills,
             missing_skills=res2.missing_skills,
+            job_skills=res2.job_skills,
             sections=res2.sections,
             strengths=res2.strengths,
             weaknesses=res2.weaknesses,
             recommendations=[r.model_dump() for r in res2.recommendations],
-            summary_feedback="Moderate alignment with core backend stack; recommend gaining hands-on Docker and cloud experience.",
+            summary_feedback="",
+            ai_model=None,
+            job_tailored_tips=[],
+            ai_insights=None,
             status=AnalysisStatus.done,
-            ai_unavailable=False,
+            ai_unavailable=True,
         )
         db.add(a2)
 
@@ -206,19 +231,30 @@ def seed_demo_data():
             detected_skills=[],
             matching_skills=[],
             missing_skills=[],
+            job_skills=[],
             sections={},
             strengths=[],
             weaknesses=[],
             recommendations=[],
             summary_feedback=None,
+            ai_model=None,
+            job_tailored_tips=[],
+            ai_insights=None,
             status=AnalysisStatus.failed,
             error="Document extraction failed: corrupt PDF structure or unreadable text stream.",
-            ai_unavailable=False,
+            ai_unavailable=True,
         )
         db.add(a3)
-
         db.commit()
-        print("Demo seed completed successfully. Created demo user demo@example.com with 3 analyses and seeded administrator.")
+
+        if _is_gemini_operational():
+            print("Gemini key is active. Running real pipeline analyses for demo user...")
+            _run_pipeline(a0.id, r1_text, None)
+            _run_pipeline(a1.id, r1_text, jd1)
+            _run_pipeline(a2.id, r2_text, jd2)
+            print("Demo analyses enriched with live Gemini intelligence.")
+        else:
+            print("Demo seed completed rule-based analyses (ai_unavailable=True, empty summary).")
 
 
 if __name__ == "__main__":

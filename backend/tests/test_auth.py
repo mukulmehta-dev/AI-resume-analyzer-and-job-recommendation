@@ -59,6 +59,90 @@ def test_deactivated_user_cannot_login(client, db_session):
     assert "deactivated" in login_res.json()["detail"].lower()
 
 
+def test_duplicate_email_returns_400(client):
+    payload = {
+        "name": "Alice Duplicate",
+        "email": "alice_dup@example.com",
+        "password": "securepassword123"
+    }
+    res1 = client.post("/api/auth/register", json=payload)
+    assert res1.status_code == 201
+
+    res2 = client.post("/api/auth/register", json=payload)
+    assert res2.status_code == 400
+    assert "already registered" in res2.json()["detail"].lower()
+
+
+def test_short_password_returns_422(client):
+    payload = {
+        "name": "Short Password",
+        "email": "short_pw@example.com",
+        "password": "short"
+    }
+    res = client.post("/api/auth/register", json=payload)
+    assert res.status_code == 422
+
+
+def test_password_over_72_bytes_returns_422(client):
+    payload = {
+        "name": "Long Password",
+        "email": "long_pw@example.com",
+        "password": "a" * 73
+    }
+    res = client.post("/api/auth/register", json=payload)
+    assert res.status_code == 422
+
+
+def test_invalid_email_returns_422(client):
+    payload = {
+        "name": "Invalid Email",
+        "email": "not-an-email-address",
+        "password": "securepassword123"
+    }
+    res = client.post("/api/auth/register", json=payload)
+    assert res.status_code == 422
+
+
+def test_name_too_short_returns_422(client):
+    payload = {
+        "name": "A",
+        "email": "valid_email@example.com",
+        "password": "securepassword123"
+    }
+    res = client.post("/api/auth/register", json=payload)
+    assert res.status_code == 422
+
+
+def test_wrong_password_returns_401(client):
+    payload = {
+        "name": "Bob Password",
+        "email": "bob_pw@example.com",
+        "password": "correctpassword123"
+    }
+    reg = client.post("/api/auth/register", json=payload)
+    assert reg.status_code == 201
+
+    res = client.post("/api/auth/login", json={"email": "bob_pw@example.com", "password": "wrongpassword999"})
+    assert res.status_code == 401
+    assert "invalid" in res.json()["detail"].lower()
+
+
+def test_logout_clears_the_cookie(client):
+    payload = {
+        "name": "Logout Tester",
+        "email": "logout_test@example.com",
+        "password": "logoutpassword123"
+    }
+    reg = client.post("/api/auth/register", json=payload)
+    assert reg.status_code == 201
+    assert "access_token" in reg.cookies
+
+    res = client.post("/api/auth/logout")
+    assert res.status_code == 200
+    token_val = res.cookies.get("access_token", "")
+    assert token_val == '""' or token_val == "" or res.headers.get("set-cookie", "").find("access_token=;") != -1 or "Max-Age=0" in res.headers.get("set-cookie", "")
+
+
 def test_admin_seed_creates_one_admin_only(db_session):
     settings.ADMIN_EMAIL = "admin_seed@example.com"
     settings.ADMIN_PASSWORD = "superadminpassword123"

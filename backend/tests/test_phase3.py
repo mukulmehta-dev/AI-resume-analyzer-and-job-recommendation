@@ -1,4 +1,4 @@
-﻿import pytest
+import pytest
 from backend.app.services.skills import extract_skills
 from backend.app.services.nlp import (
     detect_sections, extract_contact_info, estimate_years_of_experience,

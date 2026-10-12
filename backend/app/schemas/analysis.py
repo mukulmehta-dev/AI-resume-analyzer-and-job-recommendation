@@ -13,6 +13,12 @@ class RecommendationItem(BaseModel):
     title: str
     detail: str
     priority: str
+    source: Optional[str] = "rules"
+
+
+class JobSkillItem(BaseModel):
+    name: str
+    type: str
 
 
 class SkillWithCategory(BaseModel):
@@ -38,6 +44,10 @@ class AnalysisResponse(BaseModel):
     recommendations: List[Any]
     summary_feedback: Optional[str]
     ai_unavailable: bool
+    ai_model: Optional[str] = None
+    job_tailored_tips: List[str] = []
+    job_skills: List[Dict[str, Any]] = []
+    ai_insights: Optional[Dict[str, Any]] = None
     status: str
     error: Optional[str]
     created_at: datetime

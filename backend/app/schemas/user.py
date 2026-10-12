@@ -1,14 +1,22 @@
 import uuid
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator
 from backend.app.models.user import UserRole
 
 
 class UserRegisterRequest(BaseModel):
     name: str = Field(..., min_length=2, max_length=100)
     email: EmailStr
-    password: str = Field(..., min_length=6, max_length=128)
+    password: str = Field(..., min_length=8)
+
+    @field_validator("password")
+    @classmethod
+    def validate_password_length(cls, v: str) -> str:
+        b = v.encode("utf-8")
+        if len(b) < 8 or len(b) > 72:
+            raise ValueError("Password must be between 8 and 72 bytes")
+        return v
 
 
 class UserLoginRequest(BaseModel):

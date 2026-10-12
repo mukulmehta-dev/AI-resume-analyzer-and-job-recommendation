@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from backend.app.db.session import get_db, SessionLocal
 from backend.app.core.deps import get_current_user
-from backend.app.core.ratelimit import check_rate_limit
+from backend.app.core.ratelimit import record_and_check_limit
 from backend.app.models.analysis import Analysis, AnalysisStatus
 from backend.app.models.resume import Resume
 from backend.app.schemas.analysis import (
@@ -60,12 +60,16 @@ def _run_pipeline(
         analysis.detected_skills = result.detected_skills
         analysis.matching_skills = result.matching_skills
         analysis.missing_skills = result.missing_skills
+        analysis.job_skills = result.job_skills
         analysis.sections = result.sections
         analysis.strengths = result.strengths
         analysis.weaknesses = result.weaknesses
         analysis.recommendations = [r.model_dump() for r in result.recommendations]
-        analysis.summary_feedback = result.summary_feedback
-        analysis.ai_unavailable = False
+        analysis.summary_feedback = None
+        analysis.job_tailored_tips = []
+        analysis.ai_model = None
+        analysis.ai_insights = None
+        analysis.ai_unavailable = True
         db.commit()
 
         try:
@@ -85,15 +89,32 @@ def _run_pipeline(
                 resume_score=result.resume_score,
                 sections=result.sections,
             )
-            analysis.strengths = ai_result.get("strengths", analysis.strengths)
-            analysis.weaknesses = ai_result.get("weaknesses", analysis.weaknesses)
-            analysis.recommendations = ai_result.get("recommendations", analysis.recommendations)
-            analysis.summary_feedback = ai_result.get("summary_feedback", "")
+            analysis.ai_model = ai_result.get("model_used")
+            analysis.job_tailored_tips = ai_result.get("job_tailored_tips", [])
+            analysis.summary_feedback = ai_result.get("summary_feedback")
+            ai_recs = ai_result.get("recommendations", [])
+            for r in ai_recs:
+                if isinstance(r, dict):
+                    r["source"] = "ai"
+            analysis.ai_insights = {
+                "summary": ai_result.get("summary_feedback", ""),
+                "strengths": ai_result.get("strengths", []),
+                "weaknesses": ai_result.get("weaknesses", []),
+                "recommendations": ai_recs,
+            }
             analysis.ai_unavailable = False
         except GeminiUnavailable:
             analysis.ai_unavailable = True
+            analysis.ai_model = None
+            analysis.job_tailored_tips = []
+            analysis.summary_feedback = None
+            analysis.ai_insights = None
         except Exception:
             analysis.ai_unavailable = True
+            analysis.ai_model = None
+            analysis.job_tailored_tips = []
+            analysis.summary_feedback = None
+            analysis.ai_insights = None
 
         analysis.status = AnalysisStatus.done
         db.commit()
@@ -112,12 +133,10 @@ def _run_pipeline(
         db.close()
 
 
-
 @router.post(
     "",
     response_model=AnalysisAcceptedResponse,
     status_code=status.HTTP_202_ACCEPTED,
-    dependencies=[Depends(check_rate_limit("analyses_create", max_requests=10, window_seconds=3600))],
 )
 def create_analysis(
     data: AnalysisCreateRequest,
@@ -125,6 +144,8 @@ def create_analysis(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    record_and_check_limit(f"analyses_create:{current_user.id}", max_requests=10, window_seconds=3600)
+
     resume = db.query(Resume).filter(
         Resume.id == data.resume_id,
         Resume.user_id == current_user.id,
@@ -155,12 +176,14 @@ def create_analysis(
         detected_skills=[],
         matching_skills=[],
         missing_skills=[],
+        job_skills=[],
         sections={},
         strengths=[],
         weaknesses=[],
         recommendations=[],
+        job_tailored_tips=[],
         status=AnalysisStatus.pending,
-        ai_unavailable=False,
+        ai_unavailable=True,
     )
     db.add(analysis)
     db.commit()

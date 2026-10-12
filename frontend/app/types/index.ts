@@ -25,6 +25,7 @@ export interface RecommendationItem {
   title: string;
   detail: string;
   priority: "high" | "medium" | "low";
+  source?: "rules" | "ai";
 }
 
 export interface SkillWithCategory {
@@ -36,6 +37,18 @@ export interface SectionSubScore {
   score: number;
   weight: number;
   explanation: string;
+}
+
+export interface JobSkill {
+  name: string;
+  type: "required" | "preferred";
+}
+
+export interface AiInsights {
+  summary: string;
+  strengths: string[];
+  weaknesses: string[];
+  recommendations: RecommendationItem[];
 }
 
 export interface Analysis {
@@ -50,6 +63,10 @@ export interface Analysis {
   detected_skills_with_category?: SkillWithCategory[];
   matching_skills: string[];
   missing_skills: string[];
+  job_skills?: JobSkill[];
+  job_tailored_tips?: string[];
+  ai_model?: string | null;
+  ai_insights?: AiInsights | null;
   sections: Record<string, boolean | SectionSubScore>;
   strengths: string[];
   weaknesses: string[];

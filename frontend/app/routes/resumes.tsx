@@ -177,7 +177,7 @@ export default function ResumesPage() {
 
                 <div className="flex flex-wrap items-center justify-between md:justify-end gap-3 pt-3 md:pt-0 border-t md:border-t-0 border-gray-100">
                   <div className="flex items-center gap-2 mr-2">
-                    <span className="text-xs text-gray-400 font-medium hidden sm:inline">Score:</span>
+                    <span className="text-xs text-gray-600 font-medium hidden sm:inline">Score:</span>
                     {getScoreBadge(item.latest_score)}
                   </div>
 

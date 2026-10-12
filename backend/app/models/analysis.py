@@ -35,6 +35,10 @@ class Analysis(Base):
     recommendations = Column(JSONType, nullable=False, default=list)
     summary_feedback = Column(Text, nullable=True)
     ai_unavailable = Column(Boolean, nullable=False, default=False)
+    ai_model = Column(Text, nullable=True)
+    job_tailored_tips = Column(JSONType, nullable=False, default=list)
+    job_skills = Column(JSONType, nullable=False, default=list)
+    ai_insights = Column(JSONType, nullable=True)
     status = Column(
         SAEnum(AnalysisStatus, name="analysis_status", native_enum=False),
         default=AnalysisStatus.pending,

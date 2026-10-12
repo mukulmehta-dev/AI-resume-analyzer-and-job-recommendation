@@ -1,0 +1,11 @@
+.git
+node_modules
+.venv
+backend/.venv
+frontend/build
+review-package
+data
+*.exe
+*.db
+__pycache__
+.env

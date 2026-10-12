@@ -1,4 +1,4 @@
-﻿import os
+import os
 import sys
 import re
 from dotenv import dotenv_values

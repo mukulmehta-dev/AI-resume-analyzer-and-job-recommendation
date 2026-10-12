@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from sqlalchemy.orm import Session
 from backend.app.db.session import get_db
 from backend.app.models.user import User, UserRole
 from backend.app.schemas.user import UserRegisterRequest, UserLoginRequest, UserResponse
 from backend.app.core.security import hash_password, verify_password, create_access_token
 from backend.app.core.deps import get_current_user
-from backend.app.core.ratelimit import check_rate_limit
+from backend.app.core.ratelimit import check_rate_limit, get_client_ip, record_and_check_limit
 from backend.app.core.config import settings
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
     "/register",
     response_model=UserResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(check_rate_limit("auth_register", max_requests=10, window_seconds=60))]
+    dependencies=[Depends(check_rate_limit("auth_register", max_requests=30, window_seconds=60))]
 )
 def register(
     data: UserRegisterRequest,
@@ -40,13 +40,12 @@ def register(
     db.refresh(user)
 
     token = create_access_token(user.id)
-    is_production = settings.ENV.lower() == "production"
     response.set_cookie(
         key="access_token",
         value=token,
         httponly=True,
         samesite="lax",
-        secure=is_production,
+        secure=settings.COOKIE_SECURE,
         max_age=86400,
         path="/"
     )
@@ -55,14 +54,18 @@ def register(
 
 @router.post(
     "/login",
-    response_model=UserResponse,
-    dependencies=[Depends(check_rate_limit("auth_login", max_requests=15, window_seconds=60))]
+    response_model=UserResponse
 )
 def login(
+    request: Request,
     data: UserLoginRequest,
     response: Response,
     db: Session = Depends(get_db)
 ):
+    client_ip = get_client_ip(request)
+    record_and_check_limit(f"auth_login_ip:{client_ip}", max_requests=100, window_seconds=60)
+    record_and_check_limit(f"auth_login_ip_email:{client_ip}:{data.email.lower().strip()}", max_requests=10, window_seconds=60)
+
     user = db.query(User).filter(User.email == data.email.lower().strip()).first()
     if not user or not verify_password(data.password, user.password_hash):
         raise HTTPException(
@@ -75,13 +78,12 @@ def login(
             detail="User account is deactivated"
         )
     token = create_access_token(user.id)
-    is_production = settings.ENV.lower() == "production"
     response.set_cookie(
         key="access_token",
         value=token,
         httponly=True,
         samesite="lax",
-        secure=is_production,
+        secure=settings.COOKIE_SECURE,
         max_age=86400,
         path="/"
     )
@@ -90,13 +92,12 @@ def login(
 
 @router.post("/logout")
 def logout(response: Response):
-    is_production = settings.ENV.lower() == "production"
     response.delete_cookie(
         key="access_token",
         path="/",
         httponly=True,
         samesite="lax",
-        secure=is_production
+        secure=settings.COOKIE_SECURE
     )
     return {"message": "Logged out successfully"}
 

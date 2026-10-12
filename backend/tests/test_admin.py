@@ -173,11 +173,11 @@ def test_production_refuses_placeholder_admin_password():
     from pydantic import ValidationError
     from backend.app.core.config import Settings
     with pytest.raises(ValidationError):
-        Settings(ENV="production", JWT_SECRET="x" * 32, ADMIN_PASSWORD="AdminSecurePassword2026!")
+        Settings(ENV="production", DATABASE_URL="postgresql://postgres:postgres@localhost:5432/resume_analyzer", JWT_SECRET="x" * 32, ADMIN_PASSWORD="AdminSecurePassword2026!")
 
 
 def test_production_accepts_strong_admin_password():
     from backend.app.core.config import Settings
-    s = Settings(ENV="production", JWT_SECRET="x" * 32, ADMIN_PASSWORD="VeryStrongUniqueProdPassword2026#")
+    s = Settings(ENV="production", DATABASE_URL="postgresql://postgres:postgres@localhost:5432/resume_analyzer", JWT_SECRET="x" * 32, ADMIN_PASSWORD="VeryStrongUniqueProdPassword2026#")
     assert s.ADMIN_PASSWORD == "VeryStrongUniqueProdPassword2026#"
 

@@ -115,7 +115,7 @@ export default function AuthPage() {
               className={`flex-1 py-2 text-sm font-semibold rounded-full transition-all ${
                 tab === "login"
                   ? "bg-white text-gray-900 shadow-sm"
-                  : "text-gray-500 hover:text-gray-900"
+                  : "text-gray-700 hover:text-gray-900"
               }`}
             >
               Sign In
@@ -130,7 +130,7 @@ export default function AuthPage() {
               className={`flex-1 py-2 text-sm font-semibold rounded-full transition-all ${
                 tab === "register"
                   ? "bg-white text-gray-900 shadow-sm"
-                  : "text-gray-500 hover:text-gray-900"
+                  : "text-gray-700 hover:text-gray-900"
               }`}
             >
               Register

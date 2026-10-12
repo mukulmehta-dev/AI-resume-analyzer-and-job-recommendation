@@ -140,6 +140,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests reportlab python-docx
 
+      - name: Validate Docker Compose Configuration
+        env:
+          POSTGRES_PASSWORD: test_postgres_password_123
+          ADMIN_PASSWORD: test_admin_password_123
+          JWT_SECRET: test_jwt_secret_for_docker_e2e_32chars
+          GEMINI_API_KEY: ci_test_gemini_api_key
+        run: |
+          docker compose config > compose_resolved.yml
+          grep -q "GEMINI_API_KEY" compose_resolved.yml || (echo "GEMINI_API_KEY not found in docker compose config" && exit 1)
+          echo "Validated GEMINI_API_KEY presence in docker compose config"
+
       - name: Start Docker Compose Stack
         run: |
           docker compose up -d --build --wait

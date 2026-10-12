@@ -18,16 +18,14 @@ import {
 const PAGE_SIZE = 10;
 
 function ScoreBadge({ score }: { score: number }) {
-  const color =
+  const badgeClass =
     score >= 70
-      ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
+      ? "score-badge-green"
       : score >= 40
-      ? "text-amber-400 bg-amber-500/10 border-amber-500/20"
-      : "text-rose-400 bg-rose-500/10 border-rose-500/20";
+      ? "score-badge-yellow"
+      : "score-badge-red";
   return (
-    <span
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border ${color}`}
-    >
+    <span className={`score-badge ${badgeClass}`}>
       {score}
     </span>
   );
@@ -35,15 +33,13 @@ function ScoreBadge({ score }: { score: number }) {
 
 function StatusPill({ status }: { status: string }) {
   const map: Record<string, string> = {
-    done: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
-    pending: "text-amber-400 bg-amber-500/10 border-amber-500/20",
-    failed: "text-rose-400 bg-rose-500/10 border-rose-500/20",
+    done: "score-badge-green",
+    pending: "score-badge-yellow",
+    failed: "score-badge-red",
   };
   return (
     <span
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold capitalize border ${
-        map[status] ?? map.pending
-      }`}
+      className={`score-badge capitalize ${map[status] ?? "score-badge-yellow"}`}
     >
       {status}
     </span>
@@ -118,16 +114,16 @@ export default function HistoryPage() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
         <div>
-          <h1 className="text-3xl font-extrabold text-white tracking-tight">Analysis History</h1>
-          <p className="text-slate-400 text-sm mt-1">
+          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Analysis History</h1>
+          <p className="text-dark-200 text-sm mt-1">
             Browse, search, and review all previous resume evaluations ({total} total)
           </p>
         </div>
         <Link
           to="/upload"
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-500 transition-colors shadow-lg shadow-indigo-600/30 text-sm"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-colors shadow-md shadow-indigo-100 text-sm"
         >
           <Plus className="w-4 h-4" /> New Analysis
         </Link>
@@ -135,14 +131,14 @@ export default function HistoryPage() {
 
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             id="history-search"
             type="text"
-            placeholder="Search by resume filename…"
+            placeholder="Search by resume filename..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-slate-800/80 border border-slate-700/80 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+            className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600 shadow-sm"
           />
         </div>
 
@@ -153,7 +149,7 @@ export default function HistoryPage() {
             setHasJD(e.target.value as "all" | "yes" | "no");
             setPage(1);
           }}
-          className="bg-slate-800/80 border border-slate-700/80 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500"
+          className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-indigo-600 shadow-sm"
         >
           <option value="all">All Analyses</option>
           <option value="yes">With Job Description</option>
@@ -162,49 +158,49 @@ export default function HistoryPage() {
       </div>
 
       {error && (
-        <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 shrink-0" />
+        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-sm flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
           <span>{error}</span>
         </div>
       )}
 
       {loading ? (
         <div className="flex flex-col items-center justify-center py-24 space-y-3">
-          <div className="w-8 h-8 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
-          <span className="text-xs text-slate-400">Loading analysis records…</span>
+          <div className="w-8 h-8 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin" />
+          <span className="text-xs text-dark-200">Loading analysis records...</span>
         </div>
       ) : items.length === 0 ? (
-        <div className="p-12 text-center rounded-2xl bg-slate-800/40 border border-slate-700/50">
-          <FileText className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-          <h2 className="text-lg font-bold text-white mb-1">No Analyses Found</h2>
-          <p className="text-slate-400 text-sm mb-6 max-w-sm mx-auto">
-            {debouncedSearch || hasJD !== "all"
-              ? "No evaluation results match your search or filter criteria."
-              : "Upload your first resume to generate an in-depth intelligence report."}
+        <div className="p-12 text-center rounded-2xl bg-white gradient-border border border-slate-200 shadow-sm">
+          <FileText className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+          <h2 className="text-lg font-bold text-slate-900 mb-1">No Analyses Found</h2>
+          <p className="text-dark-200 text-sm mb-6 max-w-sm mx-auto">
+            {search || hasJD !== "all"
+              ? "No analysis records match your active search and filter criteria."
+              : "Upload and analyze your first resume to view ATS diagnostic histories."}
           </p>
           <Link
             to="/upload"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-500 transition-colors text-sm"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-colors text-sm"
           >
-            <Plus className="w-4 h-4" /> Start Evaluation
+            <Plus className="w-4 h-4" /> Analyze Resume
           </Link>
         </div>
       ) : (
-        <div className="bg-slate-800/40 rounded-2xl border border-slate-700/60 overflow-hidden shadow-xl">
+        <div className="bg-white gradient-border rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-slate-700/60 bg-slate-800/70 text-slate-400 text-[11px] font-bold uppercase tracking-wider">
-                  <th className="py-3.5 px-4">Resume</th>
+                <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-dark-200">
+                  <th className="py-3.5 px-4">Resume / Target</th>
                   <th className="py-3.5 px-4">Date</th>
                   <th className="py-3.5 px-4">Score</th>
                   <th className="py-3.5 px-4">Compatibility</th>
-                  <th className="py-3.5 px-4">JD</th>
+                  <th className="py-3.5 px-4">Job Desc</th>
                   <th className="py-3.5 px-4">Status</th>
                   <th className="py-3.5 px-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-700/50 text-sm">
+              <tbody className="divide-y divide-slate-100 text-sm">
                 {items.map((analysis) => {
                   const dateStr = new Date(analysis.created_at).toLocaleDateString(undefined, {
                     month: "short",
@@ -219,29 +215,29 @@ export default function HistoryPage() {
                   return (
                     <tr
                       key={analysis.id}
-                      className="hover:bg-slate-800/60 transition-colors cursor-pointer group"
+                      className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
                       onClick={() => navigate(`/analysis/${analysis.id}`)}
                     >
-                      <td className="py-4 px-4 font-medium text-white max-w-xs truncate">
+                      <td className="py-4 px-4 font-medium text-slate-900 max-w-xs truncate">
                         <div className="flex items-center gap-2">
-                          <FileText className="w-4 h-4 text-indigo-400 shrink-0" />
-                          <span className="truncate group-hover:text-indigo-300 transition-colors">
+                          <FileText className="w-4 h-4 text-indigo-600 shrink-0" />
+                          <span className="truncate group-hover:text-indigo-600 transition-colors">
                             {analysis.resume_filename || "Resume Evaluation"}
                           </span>
                           {analysis.ai_unavailable && (
                             <span
                               title="Rule-based score only"
-                              className="text-[10px] text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/20 shrink-0 inline-flex items-center gap-0.5"
+                              className="text-[10px] text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 shrink-0 inline-flex items-center gap-0.5"
                             >
-                              <Zap className="w-3 h-3" /> Rule
+                              <Zap className="w-3 h-3 text-amber-600" /> Rule
                             </span>
                           )}
                         </div>
                       </td>
 
-                      <td className="py-4 px-4 text-xs text-slate-400 whitespace-nowrap">
+                      <td className="py-4 px-4 text-xs text-dark-200 whitespace-nowrap">
                         <div>{dateStr}</div>
-                        <div className="text-slate-500 text-[11px]">{timeStr}</div>
+                        <div className="text-slate-400 text-[11px]">{timeStr}</div>
                       </td>
 
                       <td className="py-4 px-4">
@@ -250,11 +246,11 @@ export default function HistoryPage() {
 
                       <td className="py-4 px-4">
                         {analysis.compatibility_score !== null ? (
-                          <span className="text-xs font-semibold text-emerald-400">
+                          <span className="text-xs font-semibold text-emerald-700">
                             {analysis.compatibility_score}%
                           </span>
                         ) : (
-                          <span className="text-xs text-slate-600">—</span>
+                          <span className="text-xs text-slate-400">-</span>
                         )}
                       </td>
 
@@ -262,8 +258,8 @@ export default function HistoryPage() {
                         <span
                           className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                             analysis.job_description
-                              ? "bg-indigo-500/10 text-indigo-300 border border-indigo-500/20"
-                              : "bg-slate-700/50 text-slate-400 border border-slate-600/30"
+                              ? "bg-indigo-50 text-indigo-800 border border-indigo-200"
+                              : "bg-slate-100 text-slate-700 border border-slate-200"
                           }`}
                         >
                           {analysis.job_description ? "Yes" : "No"}
@@ -281,7 +277,7 @@ export default function HistoryPage() {
                         <div className="inline-flex items-center gap-2">
                           <Link
                             to={`/analysis/${analysis.id}`}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
+                            className="p-1.5 rounded-lg text-dark-200 hover:text-indigo-600 hover:bg-slate-100 transition-colors"
                             title="Open Analysis"
                           >
                             <ExternalLink className="w-4 h-4" />
@@ -289,7 +285,7 @@ export default function HistoryPage() {
                           <button
                             type="button"
                             onClick={() => setDeletingId(analysis.id)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                            className="p-1.5 rounded-lg text-dark-200 hover:text-rose-600 hover:bg-rose-50 transition-colors"
                             title="Delete Analysis"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -304,8 +300,8 @@ export default function HistoryPage() {
           </div>
 
           {totalPages > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 bg-slate-800/60 border-t border-slate-700/60">
-              <span className="text-xs text-slate-400">
+            <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-t border-slate-200">
+              <span className="text-xs text-dark-200">
                 Page {page} of {totalPages}
               </span>
               <div className="flex items-center gap-2">
@@ -313,7 +309,7 @@ export default function HistoryPage() {
                   type="button"
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page === 1}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
                   <ChevronLeft className="w-3.5 h-3.5" /> Previous
                 </button>
@@ -321,7 +317,7 @@ export default function HistoryPage() {
                   type="button"
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page === totalPages}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
                   Next <ChevronRight className="w-3.5 h-3.5" />
                 </button>
@@ -332,15 +328,15 @@ export default function HistoryPage() {
       )}
 
       {deletingId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-2xl space-y-4">
-            <div className="flex items-center gap-3 text-rose-400">
-              <div className="p-2.5 rounded-xl bg-rose-500/10">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="p-2.5 rounded-xl bg-rose-50">
                 <AlertTriangle className="w-6 h-6" />
               </div>
-              <h3 className="text-lg font-bold text-white">Delete Analysis?</h3>
+              <h3 className="text-lg font-bold text-slate-900">Delete Analysis?</h3>
             </div>
-            <p className="text-slate-300 text-sm leading-relaxed">
+            <p className="text-dark-200 text-sm leading-relaxed">
               Are you sure you want to permanently delete this resume analysis report? This action cannot be undone.
             </p>
             <div className="flex justify-end gap-3 pt-2">
@@ -348,7 +344,7 @@ export default function HistoryPage() {
                 type="button"
                 onClick={() => setDeletingId(null)}
                 disabled={isDeleting}
-                className="px-4 py-2 rounded-xl text-sm font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition-colors"
+                className="px-4 py-2 rounded-xl text-sm font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors"
               >
                 Cancel
               </button>
@@ -356,7 +352,7 @@ export default function HistoryPage() {
                 type="button"
                 onClick={handleDeleteConfirm}
                 disabled={isDeleting}
-                className="px-5 py-2 rounded-xl text-sm font-semibold bg-rose-600 text-white hover:bg-rose-500 transition-colors shadow-lg shadow-rose-600/30 flex items-center gap-2 disabled:opacity-50"
+                className="px-5 py-2 rounded-xl text-sm font-semibold bg-rose-600 text-white hover:bg-rose-700 transition-colors shadow-md shadow-rose-100 flex items-center gap-2 disabled:opacity-50"
               >
                 <Trash2 className="w-4 h-4" />
                 {isDeleting ? "Deleting..." : "Confirm Delete"}

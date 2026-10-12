@@ -1,4 +1,4 @@
-﻿# AI Resume Analyzer and Job Recommendation System
+# AI Resume Analyzer and Job Recommendation System
 
 Full-stack enterprise application for ATS-aligned resume analysis, deterministic scoring, semantic skill matching, and AI advisory feedback.
 
@@ -39,7 +39,8 @@ compatibility = round_half_up(100*(0.75*overlap + 0.25*min(1, tfidf_cosine/0.2))
 | `ENV` | No | `development` | Environment mode (`development` or `production`) |
 | `ADMIN_EMAIL` | No | `admin@example.com` | Initial administrator email seeded on first startup |
 | `ADMIN_PASSWORD` | No | `change_this_secure_admin_password` | Initial administrator password seeded on first startup |
-| `TRUSTED_PROXY` | No | `false` | When `true`, honors `X-Forwarded-For` header behind reverse proxy |
+| `TRUSTED_PROXY` | No | `false` | When `true`, honors `X-Real-IP` header behind reverse proxy |
+| `COOKIE_SECURE` | No | `true` in production | When `true`, session cookies are marked Secure (HTTPS only) |
 | `UPLOAD_DIR` | No | `data/uploads` | Local disk directory for storing uploaded PDF and DOCX files |
 | `MAX_UPLOAD_MB` | No | `5` | Maximum upload size threshold in megabytes |
 | `GEMINI_API_KEY` | No | None | Google Gemini API key for optional LLM executive feedback |
@@ -158,6 +159,24 @@ docker compose down
 ## 5. Cloud Deployment Guide
 
 ### Option A: Single VPS (Ubuntu / Debian)
+
+#### 1. Standard HTTP Deployment (Nginx)
+Run the standard stack with Nginx on port 80:
+
+```bash
+docker compose up --build -d
+```
+
+#### 2. Automatic HTTPS Deployment (Caddy with Automatic TLS)
+For production deployments on a real domain, use `docker-compose.https.yml` to enable Caddy with automated Let's Encrypt TLS:
+
+```bash
+export DOMAIN=resume-analyzer.yourdomain.com
+docker compose -f docker-compose.yml -f docker-compose.https.yml up --build -d
+```
+
+Caddy automatically obtains and renews TLS certificates for `$DOMAIN` and terminates HTTPS on ports 80 and 443 while proxying traffic to the web frontend and API backend.
+
 
 1. Provision an Ubuntu 24.04 LTS instance with at least 2 GB RAM.
 2. Install Docker and Docker Compose:
