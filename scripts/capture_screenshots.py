@@ -29,8 +29,11 @@ def save_and_copy(page, filename: str):
 
 def main():
     db = SessionLocal()
-    analysis_no_jd = db.query(Analysis).filter(Analysis.job_description.is_(None)).first()
-    analysis_with_jd = db.query(Analysis).filter(Analysis.job_description.isnot(None)).first()
+    from backend.app.models.user import User
+    demo_user = db.query(User).filter(User.email == 'demo@example.com').first()
+    user_id_filter = demo_user.id if demo_user else None
+    analysis_no_jd = db.query(Analysis).filter(Analysis.user_id == user_id_filter, Analysis.job_description.is_(None)).first()
+    analysis_with_jd = db.query(Analysis).filter(Analysis.user_id == user_id_filter, Analysis.job_description.isnot(None), Analysis.resume_score > 0).first()
     no_jd_id = str(analysis_no_jd.id) if analysis_no_jd else ""
     with_jd_id = str(analysis_with_jd.id) if analysis_with_jd else ""
     db.close()
